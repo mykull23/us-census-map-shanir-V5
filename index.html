@@ -7,7 +7,7 @@
     <title>ACS Data Explorer</title>
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <!-- <link rel="icon" type="image/x-icon" href="images/favicon.ico"> -->
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -23,58 +23,9 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/map.css">
     <link rel="stylesheet" href="css/notifications.css">
-
-    <!-- CSS Load Checker - Injects test elements to verify CSS loaded -->
-    <style>
-        /* Hidden test elements to verify CSS loading */
-        .css-test {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-            pointer-events: none;
-            visibility: hidden;
-        }
-        .css-test-styles { background: #3b82f6; }
-        .css-test-map { background: #ef4444; }
-        .css-test-notifications { background: #10b981; }
-        
-        /* CSS Load Status Banner - Hidden by default */
-        #css-load-status {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: #dc2626;
-            color: white;
-            text-align: center;
-            padding: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            z-index: 100000;
-            display: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        #css-load-status.success {
-            background: #10b981;
-        }
-        #css-load-status i {
-            margin-right: 6px;
-        }
-    </style>
 </head>
 
 <body>
-    <!-- CSS Load Status Banner -->
-    <div id="css-load-status"></div>
-
-    <!-- CSS Test Elements - Invisible, used to verify styles loaded -->
-    <div class="css-test">
-        <div id="test-styles" class="css-test-styles"></div>
-        <div id="test-map" class="css-test-map"></div>
-        <div id="test-notifications" class="css-test-notifications"></div>
-    </div>
-
     <!-- Loading Overlay -->
     <div id="app-loading" class="app-loading">
         <div class="loading-content">

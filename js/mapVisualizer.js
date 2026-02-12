@@ -1,5 +1,5 @@
 // ============================================================================
-// MAP VISUALIZATION ENGINE - FIXED: Popup text colors, WASD marker navigation
+// MAP VISUALIZATION ENGINE - COMPLETE FIXED VERSION
 // ============================================================================
 
 class ACSMapVisualizer {
@@ -23,14 +23,16 @@ class ACSMapVisualizer {
         this.map = null;
         this.markerCluster = null;
         this.markers = new Map();
-        this.hotspots = new Map();
+        this.hotspots = [];
         this.hotspotLayers = [];
         this.activePopup = null;
         
-        // Marker navigation
+        // Marker navigation - FIXED: Direction-based navigation
         this.markerList = [];
         this.currentMarkerIndex = -1;
-        this.keyboardMode = 'markers'; // 'markers' for WASD, 'map' for arrows
+        this.keyboardMode = 'markers';
+        this.lastNavigationTime = 0;
+        this.navigationCooldown = 300; // ms between navigations
         
         // County data for hotspot naming
         this.countyData = new Map();
@@ -57,6 +59,10 @@ class ACSMapVisualizer {
         // Prevent multiple drawing sessions
         this.drawingLock = false;
         
+        // Hotspot calculation state - FIXED: Notification management
+        this.isCalculatingHotspots = false;
+        this.hotspotNotificationId = null;
+        
         this.layerColors = {
             education: '#3b82f6',
             income: '#ef4444',
@@ -70,8 +76,13 @@ class ACSMapVisualizer {
         this.setupCircleDrawing();
         this.setupKeyboardNavigation();
         this.setupCoordinatesDisplay();
+        this.setupLayerToggleListeners();
         this.loadCountyData();
     }
+
+    // ============================================================================
+    // MAP INITIALIZATION
+    // ============================================================================
 
     initMap() {
         const container = document.getElementById(this.config.containerId);
@@ -116,7 +127,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // KEYBOARD NAVIGATION - FIXED: WASD = marker to marker, Arrow keys = pan map
+    // KEYBOARD NAVIGATION - FIXED: WASD jumps to nearest marker in direction
     // ============================================================================
 
     setupKeyboardNavigation() {
@@ -127,6 +138,7 @@ class ACSMapVisualizer {
             
             const key = e.key.toLowerCase();
             const shift = e.shiftKey;
+            const now = Date.now();
             
             // ===== ARROW KEYS = Pan the map =====
             if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
@@ -146,9 +158,15 @@ class ACSMapVisualizer {
                 return;
             }
             
-            // ===== WASD = Navigate between markers =====
+            // ===== WASD = Navigate between markers by direction =====
             if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
                 e.preventDefault();
+                
+                // Cooldown to prevent too fast navigation
+                if (now - this.lastNavigationTime < this.navigationCooldown) {
+                    return;
+                }
+                this.lastNavigationTime = now;
                 
                 // Build marker list if empty
                 if (this.markerList.length === 0) {
@@ -157,54 +175,72 @@ class ACSMapVisualizer {
                 
                 if (this.markerList.length === 0) return;
                 
-                // Find nearest marker if no current selection
-                if (this.currentMarkerIndex === -1) {
-                    const center = this.map.getCenter();
-                    let nearestDist = Infinity;
-                    let nearestIndex = 0;
+                const currentCenter = this.map.getCenter();
+                const currentLat = currentCenter.lat;
+                const currentLng = currentCenter.lng;
+                
+                // Find the best marker based on direction
+                let bestMarker = null;
+                let bestScore = -Infinity;
+                let bestIndex = -1;
+                
+                this.markerList.forEach((marker, index) => {
+                    const latlng = marker.getLatLng();
+                    const lat = latlng.lat;
+                    const lng = latlng.lng;
                     
-                    this.markerList.forEach((marker, index) => {
-                        const latlng = marker.getLatLng();
-                        const dist = Math.sqrt(
-                            Math.pow(latlng.lat - center.lat, 2) + 
-                            Math.pow(latlng.lng - center.lng, 2)
-                        );
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
-                            nearestIndex = index;
-                        }
-                    });
+                    // Calculate direction vector
+                    const latDiff = lat - currentLat;
+                    const lngDiff = lng - currentLng;
+                    const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
                     
-                    this.currentMarkerIndex = nearestIndex;
-                }
-                
-                // Navigate based on key
-                if (key === 'w') { // Up - previous marker
-                    this.currentMarkerIndex = (this.currentMarkerIndex - 1 + this.markerList.length) % this.markerList.length;
-                }
-                if (key === 's') { // Down - next marker
-                    this.currentMarkerIndex = (this.currentMarkerIndex + 1) % this.markerList.length;
-                }
-                if (key === 'a') { // Left - previous marker
-                    this.currentMarkerIndex = (this.currentMarkerIndex - 1 + this.markerList.length) % this.markerList.length;
-                }
-                if (key === 'd') { // Right - next marker
-                    this.currentMarkerIndex = (this.currentMarkerIndex + 1) % this.markerList.length;
-                }
-                
-                // Fly to selected marker
-                const selectedMarker = this.markerList[this.currentMarkerIndex];
-                const latlng = selectedMarker.getLatLng();
-                
-                this.map.flyTo(latlng, Math.max(this.map.getZoom(), 10), {
-                    duration: 0.6
+                    if (distance === 0) return;
+                    
+                    // Normalize direction vector
+                    const normLat = latDiff / distance;
+                    const normLng = lngDiff / distance;
+                    
+                    // Target direction based on key
+                    let targetLat = 0, targetLng = 0;
+                    if (key === 'w') targetLat = 1; // North
+                    if (key === 's') targetLat = -1; // South
+                    if (key === 'a') targetLng = -1; // West
+                    if (key === 'd') targetLng = 1; // East
+                    
+                    // Calculate dot product between direction vectors
+                    const dotProduct = (normLat * targetLat) + (normLng * targetLng);
+                    
+                    // Score based on: direction similarity + (1 / distance)
+                    const directionScore = Math.max(0, dotProduct); // Only positive directions
+                    const distanceScore = 1 / (distance + 0.1);
+                    
+                    // Weight: direction is more important than distance
+                    const score = (directionScore * 2) + (distanceScore * 0.5);
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMarker = marker;
+                        bestIndex = index;
+                    }
                 });
                 
-                // Show popup
-                setTimeout(() => {
-                    this.closeAllPopups();
-                    this.showMarkerPopup(selectedMarker, selectedMarker.zip);
-                }, 600);
+                // If no marker in that direction, don't change
+                if (bestMarker && bestScore > 0.5) {
+                    this.currentMarkerIndex = bestIndex;
+                    
+                    // Fly to selected marker
+                    const latlng = bestMarker.getLatLng();
+                    
+                    this.map.flyTo(latlng, Math.max(this.map.getZoom(), 10), {
+                        duration: 0.6
+                    });
+                    
+                    // Show popup
+                    setTimeout(() => {
+                        this.closeAllPopups();
+                        this.showMarkerPopup(bestMarker, bestMarker.zip);
+                    }, 600);
+                }
                 
                 return;
             }
@@ -242,40 +278,14 @@ class ACSMapVisualizer {
         });
     }
 
-        // ============================================================================
-    // FULLSCREEN TOGGLE - F key
-    // ============================================================================
-
-    toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-            // Update button icon if exists
-            const fullscreenBtn = document.getElementById('fullscreenBtn');
-            if (fullscreenBtn) {
-                fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
-            }
-            this.showNotification('Fullscreen mode', 'info');
-        } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-                const fullscreenBtn = document.getElementById('fullscreenBtn');
-                if (fullscreenBtn) {
-                    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-                }
-                this.showNotification('Exited fullscreen', 'info');
-            }
-        }
-    }
-
     buildMarkerList() {
         this.markerList = [];
         this.markers.forEach((marker) => {
-            if (marker.data && (this.layerVisibility[marker.data.markerType])) {
+            if (marker.data && this.layerVisibility[marker.data.markerType]) {
                 this.markerList.push(marker);
             }
         });
         
-        // Sort by location (optional - could sort by lat/lng)
         console.log(`Built marker list: ${this.markerList.length} markers for WASD navigation`);
     }
 
@@ -406,6 +416,7 @@ class ACSMapVisualizer {
         
         // Calculate stats and show popup
         const stats = this.calculateCircleStats(circleId);
+        circle.stats = stats;
         this.closeAllPopups();
         this.showCircleStatsPopup(circleId);
         
@@ -441,35 +452,6 @@ class ACSMapVisualizer {
             this.closeAllPopups();
             this.showNotification('Circle removed', 'info');
         }
-    }
-
-    // Remove the most recent overlapping circle
-    removeMostRecentCircleAtPoint(latlng) {
-        const containingCircles = [];
-        
-        this.circles.forEach((circle, id) => {
-            const distance = this.spatialUtils.haversineDistance(
-                { lat: latlng.lat, lng: latlng.lng },
-                { lat: circle.center.lat, lng: circle.center.lng }
-            );
-            
-            if (distance <= circle.radius) {
-                containingCircles.push({
-                    id,
-                    created: circle.created,
-                    index: this.circleCreationOrder.indexOf(id)
-                });
-            }
-        });
-        
-        containingCircles.sort((a, b) => b.created - a.created);
-        
-        if (containingCircles.length > 0) {
-            this.removeCircle(containingCircles[0].id);
-            return true;
-        }
-        
-        return false;
     }
 
     clearAllCircles() {
@@ -617,7 +599,16 @@ class ACSMapVisualizer {
     // ============================================================================
 
     calculateAndShowHotspots() {
-        this.showNotification('Calculating top 50 county hotspots...', 'loading');
+        // Prevent multiple simultaneous calculations
+        if (this.isCalculatingHotspots) {
+            console.log('Hotspot calculation already in progress');
+            return;
+        }
+        
+        this.isCalculatingHotspots = true;
+        
+        // Store notification ID to close it later
+        this.hotspotNotificationId = this.showNotification('Calculating top 50 county hotspots...', 'loading');
         
         // Clear existing hotspots
         this.hotspotLayers.forEach(layer => {
@@ -626,6 +617,7 @@ class ACSMapVisualizer {
             }
         });
         this.hotspotLayers = [];
+        this.hotspots = [];
         
         const markerData = [];
         const countyGroups = new Map();
@@ -663,115 +655,200 @@ class ACSMapVisualizer {
             }
         });
         
-        const hotspots = this.spatialUtils.findHotspots(markerData);
-        const maxIntensity = hotspots.length > 0 ? hotspots[0].intensity : 1;
-        
-        // Name hotspots by dominant county
-        const namedHotspots = hotspots.map((hotspot, index) => {
-            // Find the county with most markers in this hotspot
-            const countyCounts = new Map();
-            hotspot.markers.forEach(m => {
-                const county = m.county || 'Unknown County';
-                const state = m.state || '';
-                const key = `${county}, ${state}`;
-                countyCounts.set(key, (countyCounts.get(key) || 0) + 1);
+        // Use setTimeout to prevent UI blocking and ensure notification is visible
+        setTimeout(() => {
+            const hotspots = this.spatialUtils.findHotspots(markerData);
+            const maxIntensity = hotspots.length > 0 ? hotspots[0].intensity : 1;
+            
+            // Name hotspots by dominant county
+            const namedHotspots = hotspots.map((hotspot, index) => {
+                // Find the county with most markers in this hotspot
+                const countyCounts = new Map();
+                hotspot.markers.forEach(m => {
+                    const county = m.county || 'Unknown County';
+                    const state = m.state || '';
+                    const key = `${county}, ${state}`;
+                    countyCounts.set(key, (countyCounts.get(key) || 0) + 1);
+                });
+                
+                // Get the most frequent county
+                let dominantCounty = 'Unknown County';
+                let maxCount = 0;
+                countyCounts.forEach((count, county) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        dominantCounty = county;
+                    }
+                });
+                
+                return {
+                    ...hotspot,
+                    rank: index + 1,
+                    name: dominantCounty,
+                    countyCount: maxCount,
+                    totalCount: hotspot.markers.length
+                };
             });
             
-            // Get the most frequent county
-            let dominantCounty = 'Unknown County';
-            let maxCount = 0;
-            countyCounts.forEach((count, county) => {
-                if (count > maxCount) {
-                    maxCount = count;
-                    dominantCounty = county;
+            // Store hotspots
+            this.hotspots = namedHotspots;
+            
+            // Visualize hotspots
+            namedHotspots.forEach(hotspot => {
+                // Subtle heat zone
+                const heatLayer = L.circle([hotspot.lat, hotspot.lng], {
+                    radius: hotspot.radius || 20000,
+                    color: 'rgba(239, 68, 68, 0.3)',
+                    weight: 1,
+                    fillColor: this.spatialUtils.getHotspotColor(hotspot.intensity, maxIntensity),
+                    fillOpacity: 0.2,
+                    className: 'hotspot-heat-zone',
+                    interactive: false
+                });
+                
+                // Border circle
+                const borderLayer = L.circle([hotspot.lat, hotspot.lng], {
+                    radius: hotspot.radius || 20000,
+                    color: '#ef4444',
+                    weight: 2,
+                    fillOpacity: 0,
+                    dashArray: '8, 8',
+                    className: 'hotspot-border',
+                    interactive: false
+                });
+                
+                // Label with county name
+                const label = L.marker([hotspot.lat, hotspot.lng], {
+                    icon: L.divIcon({
+                        html: `<div style="
+                            background: #ef4444;
+                            color: white;
+                            padding: 8px 14px;
+                            border-radius: 24px;
+                            font-size: 12px;
+                            font-weight: bold;
+                            border: 2px solid white;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                            white-space: nowrap;
+                            max-width: 250px;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        ">
+                            <i class="fas fa-fire"></i> #${hotspot.rank}: ${hotspot.name}
+                            <span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 12px; margin-left: 6px;">
+                                ${hotspot.totalCount} ZIPs
+                            </span>
+                        </div>`,
+                        className: 'hotspot-label',
+                        iconSize: [240, 36],
+                        iconAnchor: [120, 18]
+                    }),
+                    interactive: false
+                });
+                
+                if (this.layerVisibility.hotspots) {
+                    heatLayer.addTo(this.map);
+                    borderLayer.addTo(this.map);
+                    label.addTo(this.map);
                 }
+                
+                this.hotspotLayers.push(heatLayer, borderLayer, label);
             });
             
-            return {
-                ...hotspot,
-                rank: index + 1,
-                name: dominantCounty,
-                countyCount: maxCount,
-                totalCount: hotspot.markers.length
-            };
-        });
-        
-        // Visualize hotspots
-        namedHotspots.forEach(hotspot => {
-            // Subtle heat zone
-            const heatLayer = L.circle([hotspot.lat, hotspot.lng], {
-                radius: hotspot.radius || 20000,
-                color: 'rgba(239, 68, 68, 0.3)',
-                weight: 1,
-                fillColor: this.spatialUtils.getHotspotColor(hotspot.intensity, maxIntensity),
-                fillOpacity: 0.2,
-                className: 'hotspot-heat-zone',
-                interactive: false
-            });
-            
-            // Border circle
-            const borderLayer = L.circle([hotspot.lat, hotspot.lng], {
-                radius: hotspot.radius || 20000,
-                color: '#ef4444',
-                weight: 2,
-                fillOpacity: 0,
-                dashArray: '8, 8',
-                className: 'hotspot-border',
-                interactive: false
-            });
-            
-            // Label with county name
-            const label = L.marker([hotspot.lat, hotspot.lng], {
-                icon: L.divIcon({
-                    html: `<div style="
-                        background: #ef4444;
-                        color: white;
-                        padding: 8px 14px;
-                        border-radius: 24px;
-                        font-size: 12px;
-                        font-weight: bold;
-                        border: 2px solid white;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                        white-space: nowrap;
-                        max-width: 250px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    ">
-                        <i class="fas fa-fire"></i> #${hotspot.rank}: ${hotspot.name}
-                        <span style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 12px; margin-left: 6px;">
-                            ${hotspot.totalCount} ZIPs
-                        </span>
-                    </div>`,
-                    className: 'hotspot-label',
-                    iconSize: [240, 36],
-                    iconAnchor: [120, 18]
-                }),
-                interactive: false
-            });
-            
-            if (this.layerVisibility.hotspots) {
-                heatLayer.addTo(this.map);
-                borderLayer.addTo(this.map);
-                label.addTo(this.map);
+            // FIXED: Hide loading notification using the stored ID
+            if (this.hotspotNotificationId !== null) {
+                this.hideNotification(this.hotspotNotificationId);
+                this.hotspotNotificationId = null;
             }
             
-            this.hotspotLayers.push(heatLayer, borderLayer, label);
-        });
-        
-        // FIXED: Hide loading notification
-        this.hideNotification('loading');
-        this.showNotification(`Found ${hotspots.length} county hotspots`, 'success');
-        
-        // Update hotspot list with county names
-        if (window.acsApp) {
-            window.acsApp.updateHotspotList(namedHotspots);
-        }
-        
-        this.hotspots = namedHotspots;
+            this.showNotification(`Found ${hotspots.length} county hotspots`, 'success');
+            
+            // Update hotspot list with county names
+            if (window.acsApp) {
+                window.acsApp.updateHotspotList(namedHotspots);
+            }
+            
+            this.isCalculatingHotspots = false;
+            
+        }, 100); // Small delay to ensure notification is visible
     }
 
     // ============================================================================
-    // MARKER CREATION - FIXED: Popup text colors (white text on dark backgrounds)
+    // LAYER TOGGLE LISTENERS - FIXED: Legend checkboxes work
+    // ============================================================================
+
+    setupLayerToggleListeners() {
+        // Wait for DOM to be ready
+        setTimeout(() => {
+            const toggleEducation = document.getElementById('toggleEducation');
+            const toggleIncome = document.getElementById('toggleIncome');
+            const toggleBoth = document.getElementById('toggleBoth');
+            const toggleHotspots = document.getElementById('toggleHotspots');
+            
+            if (toggleEducation) {
+                toggleEducation.addEventListener('change', (e) => {
+                    this.toggleLayer('education', e.target.checked);
+                });
+            }
+            
+            if (toggleIncome) {
+                toggleIncome.addEventListener('change', (e) => {
+                    this.toggleLayer('income', e.target.checked);
+                });
+            }
+            
+            if (toggleBoth) {
+                toggleBoth.addEventListener('change', (e) => {
+                    this.toggleLayer('both', e.target.checked);
+                });
+            }
+            
+            if (toggleHotspots) {
+                toggleHotspots.addEventListener('change', (e) => {
+                    this.toggleHotspots(e.target.checked);
+                });
+            }
+        }, 500);
+    }
+
+    toggleLayer(layerType, visible) {
+        this.layerVisibility[layerType] = visible;
+        this.updateLayerVisibility();
+    }
+
+    toggleHotspots(visible) {
+        this.layerVisibility.hotspots = visible;
+        this.hotspotLayers.forEach(layer => {
+            if (this.map.hasLayer(layer)) {
+                if (!visible) this.map.removeLayer(layer);
+            } else {
+                if (visible) this.map.addLayer(layer);
+            }
+        });
+    }
+
+    updateLayerVisibility() {
+        this.markers.forEach(marker => {
+            const type = marker.data?.markerType;
+            if (type && this.layerVisibility[type] !== undefined) {
+                if (this.layerVisibility[type]) {
+                    if (this.markerCluster && !this.markerCluster.hasLayer(marker)) {
+                        this.markerCluster.addLayer(marker);
+                    }
+                } else {
+                    if (this.markerCluster && this.markerCluster.hasLayer(marker)) {
+                        this.markerCluster.removeLayer(marker);
+                    }
+                }
+            }
+        });
+        
+        // Rebuild marker list for navigation
+        this.buildMarkerList();
+    }
+
+    // ============================================================================
+    // MARKER CREATION - FIXED: Popup text colors
     // ============================================================================
 
     createMarker(point) {
@@ -788,7 +865,7 @@ class ACSMapVisualizer {
             value = point.totalHighIncomeHouseholds || 1000;
         }
         
-        const radius = this.spatialUtils.calculateMarkerSize(value, point.markerType);
+        const radius = this.calculateMarkerSize(value, point.markerType);
         const color = point.color || this.layerColors.both;
         
         const marker = L.circleMarker([point.lat, point.lng], {
@@ -825,6 +902,21 @@ class ACSMapVisualizer {
         return marker;
     }
 
+    calculateMarkerSize(value, type) {
+        // Base size
+        let baseSize = 6;
+        
+        // Use sqrt scaling: radius = sqrt(value) * scale
+        let scaledValue = Math.sqrt(value) * 0.15;
+        
+        // Clamp to range
+        if (type === 'both') {
+            return Math.min(Math.max(scaledValue, 8), 20);
+        } else {
+            return Math.min(Math.max(scaledValue, 5), 16);
+        }
+    }
+
     showMarkerPopup(marker, zip) {
         const data = marker.data;
         const latlng = marker.getLatLng();
@@ -838,25 +930,20 @@ class ACSMapVisualizer {
         const medianIncome = data.medianIncome ? `$${data.medianIncome.toLocaleString()}` : 'N/A';
         
         let markerType = '';
-        let markerColor = '';
         let bgColor = '';
-        let textColor = '#ffffff';
         
         if (data.hasEducation && data.hasIncome) {
             markerType = 'Both Criteria';
-            markerColor = '#8b5cf6';
             bgColor = '#8b5cf6';
         } else if (data.hasEducation) {
             markerType = 'Education Only';
-            markerColor = '#3b82f6';
             bgColor = '#3b82f6';
         } else if (data.hasIncome) {
             markerType = 'Income Only';
-            markerColor = '#ef4444';
             bgColor = '#ef4444';
         }
         
-        // FIXED: Better contrast - white text on colored backgrounds
+        // FIXED: White text on colored backgrounds
         const popupContent = `
             <div style="padding: 16px; min-width: 280px; max-width: 320px; background: white;">
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
@@ -926,46 +1013,6 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // LAYER TOGGLING
-    // ============================================================================
-
-    toggleLayer(layerType, visible) {
-        this.layerVisibility[layerType] = visible;
-        this.updateLayerVisibility();
-    }
-
-    toggleHotspots(visible) {
-        this.layerVisibility.hotspots = visible;
-        this.hotspotLayers.forEach(layer => {
-            if (this.map.hasLayer(layer)) {
-                if (!visible) this.map.removeLayer(layer);
-            } else {
-                if (visible) this.map.addLayer(layer);
-            }
-        });
-    }
-
-    updateLayerVisibility() {
-        this.markers.forEach(marker => {
-            const type = marker.data?.markerType;
-            if (type && this.layerVisibility[type] !== undefined) {
-                if (this.layerVisibility[type]) {
-                    if (this.markerCluster && !this.markerCluster.hasLayer(marker)) {
-                        this.markerCluster.addLayer(marker);
-                    }
-                } else {
-                    if (this.markerCluster && this.markerCluster.hasLayer(marker)) {
-                        this.markerCluster.removeLayer(marker);
-                    }
-                }
-            }
-        });
-        
-        // Rebuild marker list for navigation
-        this.buildMarkerList();
-    }
-
-    // ============================================================================
     // DATA VISUALIZATION
     // ============================================================================
 
@@ -999,7 +1046,7 @@ class ACSMapVisualizer {
         // Build marker list for WASD navigation
         this.buildMarkerList();
         
-        // Calculate hotspots
+        // Calculate hotspots - ensure notification is properly managed
         setTimeout(() => {
             this.calculateAndShowHotspots();
         }, 500);
@@ -1091,6 +1138,10 @@ class ACSMapVisualizer {
         });
     }
 
+    // ============================================================================
+    // COORDINATES DISPLAY
+    // ============================================================================
+
     setupCoordinatesDisplay() {
         const latEl = document.getElementById('currentLat');
         const lngEl = document.getElementById('currentLng');
@@ -1125,20 +1176,54 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // UTILITIES
+    // NOTIFICATION HELPERS - FIXED
     // ============================================================================
 
     showNotification(message, type = 'info') {
         if (window.acsApp) {
-            window.acsApp.showNotification(message, type);
+            return window.acsApp.showNotification(message, type);
+        }
+        return null;
+    }
+
+    hideNotification(id) {
+        if (window.acsApp) {
+            if (id === 'loading' || id === undefined) {
+                // Hide all loading notifications
+                window.acsApp.hideNotification();
+            } else {
+                window.acsApp.hideNotification(id);
+            }
         }
     }
 
-    hideNotification(type = 'loading') {
-        if (window.acsApp) {
-            window.acsApp.hideNotification(type);
+    // ============================================================================
+    // FULLSCREEN TOGGLE
+    // ============================================================================
+
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+            }
+            this.showNotification('Fullscreen mode', 'info');
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+                const fullscreenBtn = document.getElementById('fullscreenBtn');
+                if (fullscreenBtn) {
+                    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                }
+                this.showNotification('Exited fullscreen', 'info');
+            }
         }
     }
+
+    // ============================================================================
+    // UTILITIES
+    // ============================================================================
 
     loadCountyData() {
         // This will be populated from ZIP data
@@ -1185,7 +1270,7 @@ class ACSMapVisualizer {
             }
         });
         this.hotspotLayers = [];
-        this.hotspots.clear();
+        this.hotspots = [];
         
         this.clearAllCircles();
         this.closeAllPopups();
@@ -1230,6 +1315,7 @@ class ACSMapVisualizer {
     }
 }
 
+// Export to global scope
 if (typeof window !== 'undefined') {
     window.ACSMapVisualizer = ACSMapVisualizer;
 }

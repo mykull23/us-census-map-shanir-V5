@@ -27,15 +27,11 @@ class ACSMapVisualizer {
         this.hotspotLayers = [];
         this.activePopup = null;
         
-        // Marker navigation - FIXED: Direction-based navigation
+        // Marker navigation
         this.markerList = [];
         this.currentMarkerIndex = -1;
-        this.keyboardMode = 'markers';
         this.lastNavigationTime = 0;
-        this.navigationCooldown = 300; // ms between navigations
-        
-        // County data for hotspot naming
-        this.countyData = new Map();
+        this.navigationCooldown = 300;
         
         // Layer visibility states
         this.layerVisibility = {
@@ -59,9 +55,17 @@ class ACSMapVisualizer {
         // Prevent multiple drawing sessions
         this.drawingLock = false;
         
-        // Hotspot calculation state - FIXED: Notification management
+        // Hotspot calculation state
         this.isCalculatingHotspots = false;
         this.hotspotNotificationId = null;
+        
+        // Active circle popup state
+        this.activeCircleId = null;
+        this.activeCircleRing = 'inner';
+        
+        // Storage keys
+        this.storageKey = 'acs_map_circles_v1';
+        this.layerStorageKey = 'acs_map_layers_v1';
         
         this.layerColors = {
             education: '#3b82f6',
@@ -69,7 +73,11 @@ class ACSMapVisualizer {
             both: '#8b5cf6',
             hotspot: '#ef4444',
             hotspotFill: 'rgba(239, 68, 68, 0.15)',
-            circle: '#10b981'
+            circle: {
+                inner: '#10b981',     // Green - 5 miles
+                middle: '#f59e0b',    // Orange - 10 miles
+                outer: '#ef4444'      // Red - 20 miles
+            }
         };
 
         this.initMap();
@@ -77,7 +85,14 @@ class ACSMapVisualizer {
         this.setupKeyboardNavigation();
         this.setupCoordinatesDisplay();
         this.setupLayerToggleListeners();
-        this.loadCountyData();
+        
+        // Load saved layer visibility
+        this.loadLayerVisibility();
+        
+        // Load saved circles after map is initialized
+        setTimeout(() => {
+            this.loadSavedCircles();
+        }, 1000);
     }
 
     // ============================================================================
@@ -105,7 +120,6 @@ class ACSMapVisualizer {
             crossOrigin: true
         }).addTo(this.map);
 
-        // Close all popups when clicking on map
         this.map.on('click', () => {
             this.closeAllPopups();
         });
@@ -123,11 +137,236 @@ class ACSMapVisualizer {
             this.map.addLayer(this.markerCluster);
         }
 
-        L.control.scale({ imperial: true, metric: true, position: 'bottomleft' }).addTo(this.map);
+        L.control.scale({ imperial: true, metric: false, position: 'bottomleft' }).addTo(this.map);
     }
 
     // ============================================================================
-    // KEYBOARD NAVIGATION - FIXED: WASD jumps to nearest marker in direction
+    // LAYER VISIBILITY PERSISTENCE
+    // ============================================================================
+
+    saveLayerVisibility() {
+        try {
+            localStorage.setItem(this.layerStorageKey, JSON.stringify(this.layerVisibility));
+        } catch (e) {
+            console.error('Failed to save layer visibility:', e);
+        }
+    }
+
+    loadLayerVisibility() {
+        try {
+            const saved = localStorage.getItem(this.layerStorageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                this.layerVisibility = {
+                    education: parsed.education !== undefined ? parsed.education : true,
+                    income: parsed.income !== undefined ? parsed.income : true,
+                    both: parsed.both !== undefined ? parsed.both : true,
+                    hotspots: parsed.hotspots !== undefined ? parsed.hotspots : true
+                };
+                
+                // Update checkboxes after map is ready
+                setTimeout(() => {
+                    this.updateLayerCheckboxes();
+                    this.updateLayerVisibility();
+                }, 500);
+            }
+        } catch (e) {
+            console.error('Failed to load layer visibility:', e);
+        }
+    }
+
+    updateLayerCheckboxes() {
+        const toggleEducation = document.getElementById('toggleEducation');
+        const toggleIncome = document.getElementById('toggleIncome');
+        const toggleBoth = document.getElementById('toggleBoth');
+        const toggleHotspots = document.getElementById('toggleHotspots');
+        
+        if (toggleEducation) toggleEducation.checked = this.layerVisibility.education;
+        if (toggleIncome) toggleIncome.checked = this.layerVisibility.income;
+        if (toggleBoth) toggleBoth.checked = this.layerVisibility.both;
+        if (toggleHotspots) toggleHotspots.checked = this.layerVisibility.hotspots;
+    }
+
+    // ============================================================================
+    // PERSISTENT CIRCLE STORAGE
+    // ============================================================================
+
+    saveCircles() {
+        try {
+            const circlesData = [];
+            this.circles.forEach((circle, id) => {
+                circlesData.push({
+                    id: id,
+                    center: {
+                        lat: circle.center.lat,
+                        lng: circle.center.lng
+                    },
+                    radii: circle.radii,
+                    timestamp: circle.timestamp,
+                    created: circle.created
+                });
+            });
+            
+            localStorage.setItem(this.storageKey, JSON.stringify(circlesData));
+        } catch (e) {
+            console.error('Failed to save circles:', e);
+        }
+    }
+
+    loadSavedCircles() {
+        try {
+            const saved = localStorage.getItem(this.storageKey);
+            if (!saved) return;
+            
+            const circlesData = JSON.parse(saved);
+            if (!Array.isArray(circlesData)) return;
+            
+            // Clear any existing circles first
+            this.circles.forEach((circle) => {
+                circle.layers.forEach(layer => {
+                    if (this.map && this.map.hasLayer(layer)) {
+                        this.map.removeLayer(layer);
+                    }
+                });
+            });
+            this.circles.clear();
+            this.circleCreationOrder = [];
+            
+            // Load saved circles
+            circlesData.forEach(circleData => {
+                this.recreateCircle(circleData);
+            });
+            
+            if (circlesData.length > 0) {
+                this.showNotification(`Loaded ${circlesData.length} saved circles`, 'info');
+            }
+        } catch (e) {
+            console.error('Failed to load circles:', e);
+        }
+    }
+
+    recreateCircle(circleData) {
+        const center = L.latLng(circleData.center.lat, circleData.center.lng);
+        const circleId = circleData.id || `circle_${Date.now()}_${this.circleCounter++}`;
+        
+        // Convert miles to meters for drawing
+        const milesToMeters = 1609.34;
+        
+        const innerRadiusMeters = circleData.radii.inner * milesToMeters;
+        const middleRadiusMeters = circleData.radii.middle * milesToMeters;
+        const outerRadiusMeters = circleData.radii.outer * milesToMeters;
+        
+        // Create INNER circle (Green)
+        const innerCircle = L.circle(center, {
+            radius: innerRadiusMeters,
+            color: this.layerColors.circle.inner,
+            weight: 3,
+            fillColor: this.layerColors.circle.inner,
+            fillOpacity: 0.15,
+            className: 'drawn-circle inner-circle',
+            interactive: true
+        }).addTo(this.map);
+        
+        // Create MIDDLE circle (Orange)
+        const middleCircle = L.circle(center, {
+            radius: middleRadiusMeters,
+            color: this.layerColors.circle.middle,
+            weight: 2.5,
+            fillColor: this.layerColors.circle.middle,
+            fillOpacity: 0.1,
+            className: 'drawn-circle middle-circle',
+            interactive: true
+        }).addTo(this.map);
+        
+        // Create OUTER circle (Red)
+        const outerCircle = L.circle(center, {
+            radius: outerRadiusMeters,
+            color: this.layerColors.circle.outer,
+            weight: 2,
+            fillColor: this.layerColors.circle.outer,
+            fillOpacity: 0.05,
+            className: 'drawn-circle outer-circle',
+            interactive: true
+        }).addTo(this.map);
+        
+        // Calculate statistics for each circle
+        const innerStats = this.calculateCircleStatsWithRadius(center, innerRadiusMeters);
+        const middleStats = this.calculateCircleStatsWithRadius(center, middleRadiusMeters);
+        const outerStats = this.calculateCircleStatsWithRadius(center, outerRadiusMeters);
+        
+        // Get counties and cities for each circle
+        const innerLocations = this.getLocationsInCircle(center, innerRadiusMeters);
+        const middleLocations = this.getLocationsInCircle(center, middleRadiusMeters);
+        const outerLocations = this.getLocationsInCircle(center, outerRadiusMeters);
+        
+        // Store circle data
+        const circleDataObj = {
+            id: circleId,
+            center: center,
+            layers: [innerCircle, middleCircle, outerCircle],
+            radii: {
+                inner: circleData.radii.inner,
+                middle: circleData.radii.middle,
+                outer: circleData.radii.outer,
+                innerMeters: innerRadiusMeters,
+                middleMeters: middleRadiusMeters,
+                outerMeters: outerRadiusMeters
+            },
+            stats: {
+                inner: innerStats,
+                middle: middleStats,
+                outer: outerStats
+            },
+            locations: {
+                inner: innerLocations,
+                middle: middleLocations,
+                outer: outerLocations
+            },
+            created: circleData.created || Date.now(),
+            timestamp: circleData.timestamp || new Date().toISOString()
+        };
+        
+        this.circles.set(circleId, circleDataObj);
+        this.circleCreationOrder.push(circleId);
+        
+        // Add click handlers
+        innerCircle.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            this.closeAllPopups();
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'inner';
+            this.showCirclePopup(circleId, 'inner');
+        });
+        
+        middleCircle.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            this.closeAllPopups();
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'middle';
+            this.showCirclePopup(circleId, 'middle');
+        });
+        
+        outerCircle.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            this.closeAllPopups();
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'outer';
+            this.showCirclePopup(circleId, 'outer');
+        });
+        
+        // Right-click removes all three circles
+        [innerCircle, middleCircle, outerCircle].forEach(circle => {
+            circle.on('contextmenu', (e) => {
+                L.DomEvent.stopPropagation(e);
+                e.originalEvent.preventDefault();
+                this.removeCircle(circleId);
+                return false;
+            });
+        });
+    }
+
+    // ============================================================================
+    // KEYBOARD NAVIGATION
     // ============================================================================
 
     setupKeyboardNavigation() {
@@ -140,7 +379,7 @@ class ACSMapVisualizer {
             const shift = e.shiftKey;
             const now = Date.now();
             
-            // ===== ARROW KEYS = Pan the map =====
+            // Arrow keys = Pan the map
             if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
                 e.preventDefault();
                 
@@ -158,17 +397,15 @@ class ACSMapVisualizer {
                 return;
             }
             
-            // ===== WASD = Navigate between markers by direction =====
+            // WASD = Navigate to nearest marker in that direction
             if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
                 e.preventDefault();
                 
-                // Cooldown to prevent too fast navigation
                 if (now - this.lastNavigationTime < this.navigationCooldown) {
                     return;
                 }
                 this.lastNavigationTime = now;
                 
-                // Build marker list if empty
                 if (this.markerList.length === 0) {
                     this.buildMarkerList();
                 }
@@ -179,9 +416,8 @@ class ACSMapVisualizer {
                 const currentLat = currentCenter.lat;
                 const currentLng = currentCenter.lng;
                 
-                // Find the best marker based on direction
                 let bestMarker = null;
-                let bestScore = -Infinity;
+                let bestDistance = Infinity;
                 let bestIndex = -1;
                 
                 this.markerList.forEach((marker, index) => {
@@ -189,53 +425,38 @@ class ACSMapVisualizer {
                     const lat = latlng.lat;
                     const lng = latlng.lng;
                     
-                    // Calculate direction vector
                     const latDiff = lat - currentLat;
                     const lngDiff = lng - currentLng;
                     const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
                     
-                    if (distance === 0) return;
+                    let isInDirection = false;
                     
-                    // Normalize direction vector
-                    const normLat = latDiff / distance;
-                    const normLng = lngDiff / distance;
+                    if (key === 'w' && lat > currentLat) { // North
+                        isInDirection = true;
+                    } else if (key === 's' && lat < currentLat) { // South
+                        isInDirection = true;
+                    } else if (key === 'a' && lng < currentLng) { // West
+                        isInDirection = true;
+                    } else if (key === 'd' && lng > currentLng) { // East
+                        isInDirection = true;
+                    }
                     
-                    // Target direction based on key
-                    let targetLat = 0, targetLng = 0;
-                    if (key === 'w') targetLat = 1; // North
-                    if (key === 's') targetLat = -1; // South
-                    if (key === 'a') targetLng = -1; // West
-                    if (key === 'd') targetLng = 1; // East
-                    
-                    // Calculate dot product between direction vectors
-                    const dotProduct = (normLat * targetLat) + (normLng * targetLng);
-                    
-                    // Score based on: direction similarity + (1 / distance)
-                    const directionScore = Math.max(0, dotProduct); // Only positive directions
-                    const distanceScore = 1 / (distance + 0.1);
-                    
-                    // Weight: direction is more important than distance
-                    const score = (directionScore * 2) + (distanceScore * 0.5);
-                    
-                    if (score > bestScore) {
-                        bestScore = score;
+                    if (isInDirection && distance < bestDistance) {
+                        bestDistance = distance;
                         bestMarker = marker;
                         bestIndex = index;
                     }
                 });
                 
-                // If no marker in that direction, don't change
-                if (bestMarker && bestScore > 0.5) {
+                if (bestMarker) {
                     this.currentMarkerIndex = bestIndex;
                     
-                    // Fly to selected marker
                     const latlng = bestMarker.getLatLng();
                     
                     this.map.flyTo(latlng, Math.max(this.map.getZoom(), 10), {
                         duration: 0.6
                     });
                     
-                    // Show popup
                     setTimeout(() => {
                         this.closeAllPopups();
                         this.showMarkerPopup(bestMarker, bestMarker.zip);
@@ -245,7 +466,7 @@ class ACSMapVisualizer {
                 return;
             }
             
-            // ===== OTHER KEYBOARD SHORTCUTS =====
+            // OTHER KEYBOARD SHORTCUTS
             if (key === '+' || key === '=') {
                 this.map.zoomIn();
                 e.preventDefault();
@@ -286,21 +507,23 @@ class ACSMapVisualizer {
             }
         });
         
-        console.log(`Built marker list: ${this.markerList.length} markers for WASD navigation`);
+        this.markerList.sort((a, b) => {
+            const latA = a.getLatLng().lat;
+            const latB = b.getLatLng().lat;
+            return latB - latA;
+        });
     }
 
     // ============================================================================
-    // CIRCLE DRAWING - Right-click drag, Left-click finish
+    // CIRCLE DRAWING - FIXED SIZES: 5mi, 10mi, 20mi with 5mi max draw
     // ============================================================================
 
     setupCircleDrawing() {
-        // Prevent default context menu on map
         this.map.getContainer().addEventListener('contextmenu', (e) => {
             e.preventDefault();
             return false;
         });
 
-        // Right-click down - START DRAWING
         this.map.on('contextmenu', (e) => {
             e.originalEvent.preventDefault();
             
@@ -312,7 +535,6 @@ class ACSMapVisualizer {
             return false;
         });
 
-        // Mouse move - UPDATE CIRCLE SIZE (while right button is held)
         this.map.on('mousemove', (e) => {
             if (this.isDrawing && this.tempCircle && this.startPoint) {
                 const radius = this.startPoint.distanceTo(e.latlng);
@@ -320,7 +542,6 @@ class ACSMapVisualizer {
             }
         });
 
-        // Left-click - FINISH DRAWING AND SHOW POPUP
         this.map.on('click', (e) => {
             if (this.isDrawing && this.tempCircle && this.startPoint) {
                 const radius = this.startPoint.distanceTo(e.latlng);
@@ -334,9 +555,6 @@ class ACSMapVisualizer {
                 e.originalEvent.preventDefault();
             }
         });
-
-        // Right-click on existing circle - REMOVE CIRCLE
-        // This is handled per-circle when created
     }
 
     startDrawing(startLatLng) {
@@ -354,9 +572,9 @@ class ACSMapVisualizer {
         
         this.tempCircle = L.circle(startLatLng, {
             radius: 0,
-            color: this.layerColors.circle,
+            color: this.layerColors.circle.inner,
             weight: 3,
-            fillColor: this.layerColors.circle,
+            fillColor: this.layerColors.circle.inner,
             fillOpacity: 0.15,
             dashArray: '5, 5',
             className: 'temp-circle'
@@ -364,10 +582,10 @@ class ACSMapVisualizer {
         
         this.map.getContainer().style.cursor = 'crosshair';
         
-        this.showNotification('Drag to size, left-click to finish', 'info');
+        this.showNotification('Draw circle (max 5 miles) - Creates fixed 5mi/10mi/20mi rings', 'info');
     }
 
-    finishDrawing(radius) {
+    finishDrawing(baseRadiusMeters) {
         if (!this.isDrawing || !this.tempCircle || !this.startPoint) {
             this.cancelDrawing();
             return;
@@ -376,22 +594,94 @@ class ACSMapVisualizer {
         const circleId = `circle_${Date.now()}_${this.circleCounter++}`;
         const center = this.startPoint;
         
-        // Create permanent circle
-        const circle = L.circle(center, {
-            radius: radius,
-            color: this.layerColors.circle,
-            weight: 2,
-            fillColor: this.layerColors.circle,
-            fillOpacity: 0.2,
-            className: 'drawn-circle'
+        // Convert meters to miles for checking
+        const metersToMiles = 0.000621371;
+        const drawnRadiusMiles = baseRadiusMeters * metersToMiles;
+        
+        // // LOCK THE RADIUS: Maximum 5 miles for drawing
+        // if (drawnRadiusMiles > 5) {
+        //     this.cancelDrawing();
+        //     this.showNotification('Maximum circle size is 5 miles. Please draw a smaller circle.', 'warning');
+        //     return;
+        // }
+        
+        // FIXED RADII: Always 5, 10, 20 miles regardless of drawn size
+        const innerRadiusMiles = 5;
+        const middleRadiusMiles = 10;
+        const outerRadiusMiles = 20;
+        
+        // Convert to meters for drawing
+        const milesToMeters = 1609.34;
+        const innerRadiusMeters = innerRadiusMiles * milesToMeters;
+        const middleRadiusMeters = middleRadiusMiles * milesToMeters;
+        const outerRadiusMeters = outerRadiusMiles * milesToMeters;
+        
+        // Create INNER circle (Green) - 5 miles
+        const innerCircle = L.circle(center, {
+            radius: innerRadiusMeters,
+            color: this.layerColors.circle.inner,
+            weight: 3,
+            fillColor: this.layerColors.circle.inner,
+            fillOpacity: 0.15,
+            className: 'drawn-circle inner-circle',
+            interactive: true
         }).addTo(this.map);
         
-        // Store circle with timestamp
+        // Create MIDDLE circle (Orange) - 10 miles
+        const middleCircle = L.circle(center, {
+            radius: middleRadiusMeters,
+            color: this.layerColors.circle.middle,
+            weight: 2.5,
+            fillColor: this.layerColors.circle.middle,
+            fillOpacity: 0.1,
+            className: 'drawn-circle middle-circle',
+            interactive: true
+        }).addTo(this.map);
+        
+        // Create OUTER circle (Red) - 20 miles
+        const outerCircle = L.circle(center, {
+            radius: outerRadiusMeters,
+            color: this.layerColors.circle.outer,
+            weight: 2,
+            fillColor: this.layerColors.circle.outer,
+            fillOpacity: 0.05,
+            className: 'drawn-circle outer-circle',
+            interactive: true
+        }).addTo(this.map);
+        
+        // Calculate statistics for each circle
+        const innerStats = this.calculateCircleStatsWithRadius(center, innerRadiusMeters);
+        const middleStats = this.calculateCircleStatsWithRadius(center, middleRadiusMeters);
+        const outerStats = this.calculateCircleStatsWithRadius(center, outerRadiusMeters);
+        
+        // Get counties and cities for each circle
+        const innerLocations = this.getLocationsInCircle(center, innerRadiusMeters);
+        const middleLocations = this.getLocationsInCircle(center, middleRadiusMeters);
+        const outerLocations = this.getLocationsInCircle(center, outerRadiusMeters);
+        
+        // Store circle data
         const circleData = {
-            layer: circle,
             id: circleId,
             center: center,
-            radius: radius,
+            layers: [innerCircle, middleCircle, outerCircle],
+            radii: {
+                inner: innerRadiusMiles,
+                middle: middleRadiusMiles,
+                outer: outerRadiusMiles,
+                innerMeters: innerRadiusMeters,
+                middleMeters: middleRadiusMeters,
+                outerMeters: outerRadiusMeters
+            },
+            stats: {
+                inner: innerStats,
+                middle: middleStats,
+                outer: outerStats
+            },
+            locations: {
+                inner: innerLocations,
+                middle: middleLocations,
+                outer: outerLocations
+            },
             created: Date.now(),
             timestamp: new Date().toISOString()
         };
@@ -399,31 +689,330 @@ class ACSMapVisualizer {
         this.circles.set(circleId, circleData);
         this.circleCreationOrder.push(circleId);
         
-        // LEFT-CLICK: Show stats popup (and close others)
-        circle.on('click', (e) => {
+        // Add click handlers
+        innerCircle.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
             this.closeAllPopups();
-            this.showCircleStatsPopup(circleId);
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'inner';
+            this.showCirclePopup(circleId, 'inner');
         });
         
-        // RIGHT-CLICK: Remove this circle
-        circle.on('contextmenu', (e) => {
+        middleCircle.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
-            e.originalEvent.preventDefault();
-            this.removeCircle(circleId);
-            return false;
+            this.closeAllPopups();
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'middle';
+            this.showCirclePopup(circleId, 'middle');
         });
         
-        // Calculate stats and show popup
-        const stats = this.calculateCircleStats(circleId);
-        circle.stats = stats;
+        outerCircle.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            this.closeAllPopups();
+            this.activeCircleId = circleId;
+            this.activeCircleRing = 'outer';
+            this.showCirclePopup(circleId, 'outer');
+        });
+        
+        // Right-click removes all three circles
+        [innerCircle, middleCircle, outerCircle].forEach(circle => {
+            circle.on('contextmenu', (e) => {
+                L.DomEvent.stopPropagation(e);
+                e.originalEvent.preventDefault();
+                this.removeCircle(circleId);
+                return false;
+            });
+        });
+        
+        // Show inner circle popup by default
+        this.activeCircleId = circleId;
+        this.activeCircleRing = 'inner';
         this.closeAllPopups();
-        this.showCircleStatsPopup(circleId);
+        this.showCirclePopup(circleId, 'inner');
         
-        this.showNotification(`Circle created: ${(radius/1000).toFixed(2)}km radius`, 'success');
+        // Save circles to localStorage
+        this.saveCircles();
         
-        // Clean up drawing state
+        this.showNotification(
+            `Fixed circles created: 5mi / 10mi / 20mi`, 
+            'success'
+        );
+        
         this.cancelDrawing();
+    }
+
+    // ============================================================================
+    // UNIFIED CIRCLE POPUP WITH NAVIGATION ARROWS
+    // ============================================================================
+
+    showCirclePopup(circleId, ringType) {
+        const circle = this.circles.get(circleId);
+        if (!circle) return;
+        
+        // Update active state
+        this.activeCircleId = circleId;
+        this.activeCircleRing = ringType;
+        
+        const center = circle.center;
+        const stats = circle.stats[ringType];
+        const locations = circle.locations[ringType];
+        const radius = circle.radii[ringType];
+        
+        // Ring configuration
+        const config = {
+            inner: {
+                color: '#10b981',
+                bgColor: '#f0fdf4',
+                darkColor: '#065f46',
+                borderColor: '#10b981',
+                cityTagColor: '#dbeafe',
+                cityTagText: '#1e40af',
+                name: 'INNER CIRCLE (5 mi)',
+                icon: 'fa-circle'
+            },
+            middle: {
+                color: '#f59e0b',
+                bgColor: '#fff7ed',
+                darkColor: '#92400e',
+                borderColor: '#f59e0b',
+                cityTagColor: '#fed7aa',
+                cityTagText: '#92400e',
+                name: 'MIDDLE CIRCLE (10 mi)',
+                icon: 'fa-circle'
+            },
+            outer: {
+                color: '#ef4444',
+                bgColor: '#fef2f2',
+                darkColor: '#991b1b',
+                borderColor: '#ef4444',
+                cityTagColor: '#fee2e2',
+                cityTagText: '#991b1b',
+                name: 'OUTER CIRCLE (20 mi)',
+                icon: 'fa-circle'
+            }
+        };
+        
+        const cfg = config[ringType];
+        
+        // Create popup content as DOM elements
+        const popupContent = document.createElement('div');
+        popupContent.style.cssText = 'padding: 16px; min-width: 320px; max-width: 360px; background: white; color: #1f2937; border-left: 4px solid ' + cfg.color + '; position: relative;';
+        
+        // Navigation header
+        const navDiv = document.createElement('div');
+        navDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;';
+        
+        // Left arrow
+        if (ringType !== 'inner') {
+            const leftBtn = document.createElement('button');
+            leftBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            leftBtn.style.cssText = 'background: ' + cfg.color + '; color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2);';
+            leftBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeAllPopups();
+                let prevRing = ringType === 'outer' ? 'middle' : 'inner';
+                this.showCirclePopup(circleId, prevRing);
+            };
+            navDiv.appendChild(leftBtn);
+        } else {
+            const spacer = document.createElement('div');
+            spacer.style.cssText = 'width: 32px;';
+            navDiv.appendChild(spacer);
+        }
+        
+        // Title
+        const titleDiv = document.createElement('div');
+        titleDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+        titleDiv.innerHTML = `
+            <div style="background: ${cfg.color}; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <i class="fas ${cfg.icon}"></i>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-weight: bold; color: ${cfg.darkColor}; font-size: 15px;">${cfg.name}</div>
+                <div style="font-size: 11px; color: #6b7280;">
+                    <i class="fas fa-arrows-alt-h"></i> ${radius.toFixed(1)} miles radius
+                </div>
+            </div>
+        `;
+        navDiv.appendChild(titleDiv);
+        
+        // Right arrow
+        if (ringType !== 'outer') {
+            const rightBtn = document.createElement('button');
+            rightBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            rightBtn.style.cssText = 'background: ' + cfg.color + '; color: white; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2);';
+            rightBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeAllPopups();
+                let nextRing = ringType === 'inner' ? 'middle' : 'outer';
+                this.showCirclePopup(circleId, nextRing);
+            };
+            navDiv.appendChild(rightBtn);
+        } else {
+            const spacer = document.createElement('div');
+            spacer.style.cssText = 'width: 32px;';
+            navDiv.appendChild(spacer);
+        }
+        
+        popupContent.appendChild(navDiv);
+        
+        // ZIP Code Summary
+        const zipDiv = document.createElement('div');
+        zipDiv.style.cssText = 'background: ' + cfg.bgColor + '; border-radius: 12px; padding: 16px; margin-bottom: 16px;';
+        zipDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
+                <span style="font-size: 13px; color: #4b5563;">ZIP Codes in circle:</span>
+                <span style="font-size: 24px; font-weight: bold; color: ${cfg.darkColor};">${stats.totalMarkers}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold; color: #1e40af;">${stats.educationOnly}</div>
+                    <div style="font-size: 11px; color: #6b7280;">Education Only</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold; color: #991b1b;">${stats.incomeOnly}</div>
+                    <div style="font-size: 11px; color: #6b7280;">Income Only</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold; color: #6b21a8;">${stats.bothCriteria}</div>
+                    <div style="font-size: 11px; color: #6b7280;">Both Criteria</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold; color: ${cfg.darkColor};">${stats.totalMarkers}</div>
+                    <div style="font-size: 11px; color: #6b7280;">Total ZIPs</div>
+                </div>
+            </div>
+        `;
+        popupContent.appendChild(zipDiv);
+        
+        // Economic Profile
+        const econDiv = document.createElement('div');
+        econDiv.style.cssText = 'background: #f9fafb; border-radius: 12px; padding: 16px; margin-bottom: 16px;';
+        econDiv.innerHTML = `
+            <div style="font-weight: 600; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-chart-line"></i> Economic Profile
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span style="color: #4b5563;">Median Household Income:</span>
+                <span style="font-weight: 700; color: #1f2937;">$${stats.medianIncome ? Math.round(stats.medianIncome).toLocaleString() : 'N/A'}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span style="color: #4b5563;">Total Higher Education:</span>
+                <span style="font-weight: 700; color: #1e40af;">${Math.round(stats.totalEducation).toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color: #4b5563;">Total High-Income HH:</span>
+                <span style="font-weight: 700; color: #991b1b;">${Math.round(stats.totalHighIncome).toLocaleString()}</span>
+            </div>
+        `;
+        popupContent.appendChild(econDiv);
+        
+        // Locations
+        const locDiv = document.createElement('div');
+        locDiv.style.cssText = 'background: #f9fafb; border-radius: 12px; padding: 16px;';
+        let locHtml = `
+            <div style="font-weight: 600; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                <i class="fas fa-map-marker-alt"></i> Locations
+            </div>
+        `;
+        
+        if (locations.counties.length > 0) {
+            locHtml += `
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 12px; color: #4b5563; margin-bottom: 6px;">Counties (${locations.countyCount}):</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        ${locations.counties.slice(0, 5).map(county => 
+                            `<span style="background: #e5e7eb; padding: 4px 10px; border-radius: 16px; font-size: 11px; color: #374151;">${county}</span>`
+                        ).join('')}
+                        ${locations.countyCount > 5 ? `<span style="background: #e5e7eb; padding: 4px 10px; border-radius: 16px; font-size: 11px; color: #374151;">+${locations.countyCount - 5} more</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (locations.cities.length > 0) {
+            locHtml += `
+                <div>
+                    <div style="font-size: 12px; color: #4b5563; margin-bottom: 6px;">Cities (${locations.cityCount}):</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        ${locations.cities.slice(0, 5).map(city => 
+                            `<span style="background: ${cfg.cityTagColor}; padding: 4px 10px; border-radius: 16px; font-size: 11px; color: ${cfg.cityTagText};">${city}</span>`
+                        ).join('')}
+                        ${locations.cityCount > 5 ? `<span style="background: ${cfg.cityTagColor}; padding: 4px 10px; border-radius: 16px; font-size: 11px; color: ${cfg.cityTagText};">+${locations.cityCount - 5} more</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        locDiv.innerHTML = locHtml;
+        popupContent.appendChild(locDiv);
+        
+        // Footer
+        const footerDiv = document.createElement('div');
+        footerDiv.style.cssText = 'margin-top: 16px; font-size: 11px; color: #6b7280; display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid #e5e7eb;';
+        footerDiv.innerHTML = `
+            <span><i class="fas fa-info-circle"></i> Right-click circle to remove all</span>
+            <span><i class="fas fa-clock"></i> ${new Date(circle.timestamp).toLocaleTimeString()}</span>
+        `;
+        popupContent.appendChild(footerDiv);
+        
+        // Create and open popup
+        this.activePopup = L.popup({
+            maxWidth: 400,
+            className: `circle-popup ${ringType}-popup`,
+            autoClose: false,
+            closeButton: true
+        })
+        .setLatLng(center)
+        .setContent(popupContent)
+        .openOn(this.map);
+    }
+
+    getLocationsInCircle(center, radiusMeters) {
+        const counties = new Set();
+        const cities = new Set();
+        
+        this.markers.forEach((marker) => {
+            const latlng = marker.getLatLng();
+            const distance = this.spatialUtils.haversineDistance(
+                { lat: center.lat, lng: center.lng },
+                { lat: latlng.lat, lng: latlng.lng }
+            );
+            
+            if (distance <= radiusMeters && marker.data) {
+                if (marker.data.county) counties.add(marker.data.county);
+                if (marker.data.city) cities.add(marker.data.city);
+            }
+        });
+        
+        return {
+            counties: Array.from(counties).sort().slice(0, 10),
+            cities: Array.from(cities).sort().slice(0, 10),
+            countyCount: counties.size,
+            cityCount: cities.size
+        };
+    }
+
+    calculateCircleStatsWithRadius(center, radiusMeters) {
+        const markerData = [];
+        this.markers.forEach((marker, zip) => {
+            const latlng = marker.getLatLng();
+            if (marker.data) {
+                markerData.push({
+                    lat: latlng.lat,
+                    lng: latlng.lng,
+                    hasEducation: marker.data.hasEducation,
+                    hasIncome: marker.data.hasIncome,
+                    totalHigherEd: marker.data.totalHigherEd || 0,
+                    totalHighIncomeHouseholds: marker.data.totalHighIncomeHouseholds || 0,
+                    medianIncome: marker.data.medianIncome
+                });
+            }
+        });
+        
+        return this.spatialUtils.calculateCircleStats(markerData, center, radiusMeters);
     }
 
     cancelDrawing() {
@@ -441,25 +1030,47 @@ class ACSMapVisualizer {
     removeCircle(circleId) {
         const circle = this.circles.get(circleId);
         if (circle) {
-            this.map.removeLayer(circle.layer);
+            // Remove all three layers from the map
+            circle.layers.forEach(layer => {
+                if (this.map && this.map.hasLayer(layer)) {
+                    this.map.removeLayer(layer);
+                }
+            });
+            
+            // Delete from Map collection
             this.circles.delete(circleId);
             
+            // Remove from creation order array
             const index = this.circleCreationOrder.indexOf(circleId);
             if (index > -1) {
                 this.circleCreationOrder.splice(index, 1);
             }
             
+            // Save updated circles to storage
+            this.saveCircles();
+            
             this.closeAllPopups();
-            this.showNotification('Circle removed', 'info');
+            this.showNotification('Triple circles removed', 'info');
         }
     }
 
     clearAllCircles() {
+        // Remove all circle layers from the map
         this.circles.forEach((circle) => {
-            this.map.removeLayer(circle.layer);
+            circle.layers.forEach(layer => {
+                if (this.map && this.map.hasLayer(layer)) {
+                    this.map.removeLayer(layer);
+                }
+            });
         });
+        
+        // Clear all collections
         this.circles.clear();
         this.circleCreationOrder = [];
+        
+        // Clear from storage
+        localStorage.removeItem(this.storageKey);
+        
         this.cancelDrawing();
         this.closeAllPopups();
         this.showNotification('All circles cleared', 'info');
@@ -478,139 +1089,18 @@ class ACSMapVisualizer {
         });
     }
 
-    calculateCircleStats(circleId) {
-        const circle = this.circles.get(circleId);
-        if (!circle || this.markers.size === 0) return null;
-        
-        const center = { lat: circle.center.lat, lng: circle.center.lng };
-        const radius = circle.radius;
-        
-        const markerData = [];
-        this.markers.forEach((marker, zip) => {
-            const latlng = marker.getLatLng();
-            if (marker.data) {
-                markerData.push({
-                    lat: latlng.lat,
-                    lng: latlng.lng,
-                    hasEducation: marker.data.hasEducation,
-                    hasIncome: marker.data.hasIncome,
-                    totalHigherEd: marker.data.totalHigherEd || 0,
-                    totalHighIncomeHouseholds: marker.data.totalHighIncomeHouseholds || 0,
-                    medianIncome: marker.data.medianIncome,
-                    zip: zip,
-                    county: marker.data.county || 'Unknown County',
-                    city: marker.data.city || ''
-                });
-            }
-        });
-        
-        const stats = this.spatialUtils.calculateCircleStats(markerData, center, radius);
-        stats.circleId = circleId;
-        circle.stats = stats;
-        return stats;
-    }
-
-    showCircleStatsPopup(circleId) {
-        const circle = this.circles.get(circleId);
-        if (!circle || !circle.stats) return;
-        
-        const stats = circle.stats;
-        const center = circle.center;
-        
-        this.closeAllPopups();
-        
-        const popupContent = `
-            <div style="padding: 16px; min-width: 300px; max-width: 380px; background: white; color: #1f2937;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-                    <div style="background: #10b981; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-draw-circle"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight: bold; color: #1f2937; font-size: 15px;">Circle Analysis</div>
-                        <div style="font-size: 11px; color: #6b7280;">
-                            ${stats.radiusKm.toFixed(2)} km radius | ${stats.areaSqKm.toFixed(2)} km²
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="background: #f3f4f6; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
-                    <div style="font-size: 28px; font-weight: bold; color: #1f2937; text-align: center; margin-bottom: 4px;">
-                        ${stats.totalMarkers}
-                    </div>
-                    <div style="font-size: 12px; color: #6b7280; text-align: center;">
-                        ZIP codes within circle
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
-                    <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: bold; color: #1e40af;">${stats.educationOnly}</div>
-                        <div style="font-size: 11px; color: #4b5563;">Education Only</div>
-                    </div>
-                    <div style="background: #fef2f2; padding: 12px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: bold; color: #991b1b;">${stats.incomeOnly}</div>
-                        <div style="font-size: 11px; color: #4b5563;">Income Only</div>
-                    </div>
-                    <div style="background: #f3e8ff; padding: 12px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: bold; color: #6b21a8;">${stats.bothCriteria}</div>
-                        <div style="font-size: 11px; color: #4b5563;">Both Criteria</div>
-                    </div>
-                    <div style="background: #ecfdf5; padding: 12px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: bold; color: #065f46;">${stats.totalMarkers}</div>
-                        <div style="font-size: 11px; color: #4b5563;">Total</div>
-                    </div>
-                </div>
-                
-                <div style="background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-size: 12px; color: #4b5563;">Total Higher Education:</span>
-                        <span style="font-weight: bold; color: #1e3a8a;">${Math.round(stats.totalEducation).toLocaleString()}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-size: 12px; color: #4b5563;">Total High-Income HH:</span>
-                        <span style="font-weight: bold; color: #991b1b;">${Math.round(stats.totalHighIncome).toLocaleString()}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="font-size: 12px; color: #4b5563;">Median Income (avg):</span>
-                        <span style="font-weight: bold; color: #1f2937;">$${stats.medianIncome ? Math.round(stats.medianIncome).toLocaleString() : 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div style="font-size: 11px; color: #6b7280; display: flex; justify-content: space-between; margin-top: 8px;">
-                    <span><i class="fas fa-info-circle"></i> Left-click: show stats | Right-click: remove</span>
-                    <span><i class="fas fa-clock"></i> ${new Date().toLocaleTimeString()}</span>
-                </div>
-            </div>
-        `;
-        
-        this.activePopup = L.popup({
-            maxWidth: 400,
-            className: 'circle-stats-popup',
-            autoClose: false,
-            closeButton: true
-        })
-        .setLatLng(center)
-        .setContent(popupContent)
-        .openOn(this.map);
-    }
-
     // ============================================================================
-    // HOTSPOT DETECTION - FIXED: Notification disappears when done
+    // HOTSPOT DETECTION
     // ============================================================================
 
     calculateAndShowHotspots() {
-        // Prevent multiple simultaneous calculations
         if (this.isCalculatingHotspots) {
-            console.log('Hotspot calculation already in progress');
             return;
         }
         
         this.isCalculatingHotspots = true;
-        
-        // Store notification ID to close it later
         this.hotspotNotificationId = this.showNotification('Calculating top 50 county hotspots...', 'loading');
         
-        // Clear existing hotspots
         this.hotspotLayers.forEach(layer => {
             if (this.map.hasLayer(layer)) {
                 this.map.removeLayer(layer);
@@ -620,9 +1110,7 @@ class ACSMapVisualizer {
         this.hotspots = [];
         
         const markerData = [];
-        const countyGroups = new Map();
         
-        // Group markers by county
         this.markers.forEach((marker, zip) => {
             if (marker.data) {
                 const latlng = marker.getLatLng();
@@ -638,31 +1126,14 @@ class ACSMapVisualizer {
                     state: state,
                     zip: zip
                 });
-                
-                // Group by county for naming
-                const countyKey = `${county}|${state}`;
-                if (!countyGroups.has(countyKey)) {
-                    countyGroups.set(countyKey, {
-                        name: county,
-                        state: state,
-                        count: 0,
-                        markers: []
-                    });
-                }
-                const group = countyGroups.get(countyKey);
-                group.count++;
-                group.markers.push(marker);
             }
         });
         
-        // Use setTimeout to prevent UI blocking and ensure notification is visible
         setTimeout(() => {
             const hotspots = this.spatialUtils.findHotspots(markerData);
             const maxIntensity = hotspots.length > 0 ? hotspots[0].intensity : 1;
             
-            // Name hotspots by dominant county
             const namedHotspots = hotspots.map((hotspot, index) => {
-                // Find the county with most markers in this hotspot
                 const countyCounts = new Map();
                 hotspot.markers.forEach(m => {
                     const county = m.county || 'Unknown County';
@@ -671,7 +1142,6 @@ class ACSMapVisualizer {
                     countyCounts.set(key, (countyCounts.get(key) || 0) + 1);
                 });
                 
-                // Get the most frequent county
                 let dominantCounty = 'Unknown County';
                 let maxCount = 0;
                 countyCounts.forEach((count, county) => {
@@ -690,12 +1160,9 @@ class ACSMapVisualizer {
                 };
             });
             
-            // Store hotspots
             this.hotspots = namedHotspots;
             
-            // Visualize hotspots
             namedHotspots.forEach(hotspot => {
-                // Subtle heat zone
                 const heatLayer = L.circle([hotspot.lat, hotspot.lng], {
                     radius: hotspot.radius || 20000,
                     color: 'rgba(239, 68, 68, 0.3)',
@@ -706,7 +1173,6 @@ class ACSMapVisualizer {
                     interactive: false
                 });
                 
-                // Border circle
                 const borderLayer = L.circle([hotspot.lat, hotspot.lng], {
                     radius: hotspot.radius || 20000,
                     color: '#ef4444',
@@ -717,7 +1183,6 @@ class ACSMapVisualizer {
                     interactive: false
                 });
                 
-                // Label with county name
                 const label = L.marker([hotspot.lat, hotspot.lng], {
                     icon: L.divIcon({
                         html: `<div style="
@@ -755,7 +1220,6 @@ class ACSMapVisualizer {
                 this.hotspotLayers.push(heatLayer, borderLayer, label);
             });
             
-            // FIXED: Hide loading notification using the stored ID
             if (this.hotspotNotificationId !== null) {
                 this.hideNotification(this.hotspotNotificationId);
                 this.hotspotNotificationId = null;
@@ -763,22 +1227,20 @@ class ACSMapVisualizer {
             
             this.showNotification(`Found ${hotspots.length} county hotspots`, 'success');
             
-            // Update hotspot list with county names
             if (window.acsApp) {
                 window.acsApp.updateHotspotList(namedHotspots);
             }
             
             this.isCalculatingHotspots = false;
             
-        }, 100); // Small delay to ensure notification is visible
+        }, 100);
     }
 
     // ============================================================================
-    // LAYER TOGGLE LISTENERS - FIXED: Legend checkboxes work
+    // LAYER TOGGLE LISTENERS
     // ============================================================================
 
     setupLayerToggleListeners() {
-        // Wait for DOM to be ready
         setTimeout(() => {
             const toggleEducation = document.getElementById('toggleEducation');
             const toggleIncome = document.getElementById('toggleIncome');
@@ -786,34 +1248,43 @@ class ACSMapVisualizer {
             const toggleHotspots = document.getElementById('toggleHotspots');
             
             if (toggleEducation) {
+                toggleEducation.checked = this.layerVisibility.education;
                 toggleEducation.addEventListener('change', (e) => {
                     this.toggleLayer('education', e.target.checked);
                 });
             }
             
             if (toggleIncome) {
+                toggleIncome.checked = this.layerVisibility.income;
                 toggleIncome.addEventListener('change', (e) => {
                     this.toggleLayer('income', e.target.checked);
                 });
             }
             
             if (toggleBoth) {
+                toggleBoth.checked = this.layerVisibility.both;
                 toggleBoth.addEventListener('change', (e) => {
                     this.toggleLayer('both', e.target.checked);
                 });
             }
             
             if (toggleHotspots) {
+                toggleHotspots.checked = this.layerVisibility.hotspots;
                 toggleHotspots.addEventListener('change', (e) => {
                     this.toggleHotspots(e.target.checked);
                 });
             }
+            
+            // Apply the loaded visibility
+            this.updateLayerVisibility();
+            
         }, 500);
     }
 
     toggleLayer(layerType, visible) {
         this.layerVisibility[layerType] = visible;
         this.updateLayerVisibility();
+        this.saveLayerVisibility();
     }
 
     toggleHotspots(visible) {
@@ -825,6 +1296,7 @@ class ACSMapVisualizer {
                 if (visible) this.map.addLayer(layer);
             }
         });
+        this.saveLayerVisibility();
     }
 
     updateLayerVisibility() {
@@ -843,12 +1315,11 @@ class ACSMapVisualizer {
             }
         });
         
-        // Rebuild marker list for navigation
         this.buildMarkerList();
     }
 
     // ============================================================================
-    // MARKER CREATION - FIXED: Popup text colors
+    // MARKER CREATION
     // ============================================================================
 
     createMarker(point) {
@@ -892,7 +1363,6 @@ class ACSMapVisualizer {
         };
         marker.zip = point.zip;
         
-        // Left-click: show popup and close others
         marker.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
             this.closeAllPopups();
@@ -903,13 +1373,8 @@ class ACSMapVisualizer {
     }
 
     calculateMarkerSize(value, type) {
-        // Base size
-        let baseSize = 6;
-        
-        // Use sqrt scaling: radius = sqrt(value) * scale
         let scaledValue = Math.sqrt(value) * 0.15;
         
-        // Clamp to range
         if (type === 'both') {
             return Math.min(Math.max(scaledValue, 8), 20);
         } else {
@@ -943,7 +1408,6 @@ class ACSMapVisualizer {
             bgColor = '#ef4444';
         }
         
-        // FIXED: White text on colored backgrounds
         const popupContent = `
             <div style="padding: 16px; min-width: 280px; max-width: 320px; background: white;">
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
@@ -1041,14 +1505,13 @@ class ACSMapVisualizer {
             }
         });
         
-        console.log(`Created ${this.markers.size} markers with sqrt scaling`);
-        
-        // Build marker list for WASD navigation
         this.buildMarkerList();
         
-        // Calculate hotspots - ensure notification is properly managed
         setTimeout(() => {
             this.calculateAndShowHotspots();
+            
+            // Reload circles after data is loaded
+            this.loadSavedCircles();
         }, 500);
     }
 
@@ -1161,7 +1624,6 @@ class ACSMapVisualizer {
             zoomEl.textContent = this.map.getZoom();
         }
         
-        // Update drawing mode indicator
         if (modeEl) {
             setInterval(() => {
                 if (this.isDrawing) {
@@ -1176,7 +1638,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // NOTIFICATION HELPERS - FIXED
+    // NOTIFICATION HELPERS
     // ============================================================================
 
     showNotification(message, type = 'info') {
@@ -1189,7 +1651,6 @@ class ACSMapVisualizer {
     hideNotification(id) {
         if (window.acsApp) {
             if (id === 'loading' || id === undefined) {
-                // Hide all loading notifications
                 window.acsApp.hideNotification();
             } else {
                 window.acsApp.hideNotification(id);
@@ -1225,30 +1686,6 @@ class ACSMapVisualizer {
     // UTILITIES
     // ============================================================================
 
-    loadCountyData() {
-        // This will be populated from ZIP data
-    }
-
-    getCountyName(lat, lng) {
-        let closestCounty = 'Unknown County';
-        let closestDistance = Infinity;
-        
-        this.markers.forEach(marker => {
-            const markerLatLng = marker.getLatLng();
-            const distance = this.spatialUtils.haversineDistance(
-                { lat, lng },
-                { lat: markerLatLng.lat, lng: markerLatLng.lng }
-            );
-            
-            if (distance < closestDistance && marker.data?.county) {
-                closestDistance = distance;
-                closestCounty = marker.data.county;
-            }
-        });
-        
-        return closestCounty;
-    }
-
     clear() {
         this.markers.forEach(marker => {
             if (this.markerCluster) {
@@ -1272,7 +1709,7 @@ class ACSMapVisualizer {
         this.hotspotLayers = [];
         this.hotspots = [];
         
-        this.clearAllCircles();
+        // Don't clear circles on data reload - keep them
         this.closeAllPopups();
     }
 
@@ -1315,7 +1752,6 @@ class ACSMapVisualizer {
     }
 }
 
-// Export to global scope
 if (typeof window !== 'undefined') {
     window.ACSMapVisualizer = ACSMapVisualizer;
 }

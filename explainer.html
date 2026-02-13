@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ACS Data Explorer - Complete Guide</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            color: #1e293b;
+            background: white;
+        }
+        
+        h1 {
+            font-size: 36px;
+            color: #1e3a8a;
+            border-bottom: 3px solid #3b82f6;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            font-size: 24px;
+            color: #1e3a8a;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-left: 10px;
+            border-left: 5px solid #3b82f6;
+            background: #f8fafc;
+            padding: 10px 15px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        h3 {
+            font-size: 20px;
+            color: #0f172a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        th {
+            background: #1e3a8a;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        tr:hover {
+            background: #f1f5f9;
+        }
+        
+        .color-box {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        
+        .blue-bg { background: #3b82f6; }
+        .red-bg { background: #ef4444; }
+        .purple-bg { background: #8b5cf6; }
+        .green-bg { background: #10b981; }
+        .orange-bg { background: #f59e0b; }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+        
+        .badge-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .badge-purple {
+            background: #f3e8ff;
+            color: #6b21a8;
+        }
+        
+        .badge-green {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border-left: 5px solid #3b82f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .warning-box {
+            background: #fef2f2;
+            border-left: 5px solid #ef4444;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .success-box {
+            background: #f0fdf4;
+            border-left: 5px solid #22c55e;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        .card h4 {
+            margin-top: 0;
+            color: #0f172a;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .icon {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        kbd {
+            background: #1e293b;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        hr {
+            border: none;
+            border-top: 2px solid #e2e8f0;
+            margin: 40px 0;
+        }
+        
+        .emoji-large {
+            font-size: 24px;
+        }
+        
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: #1e3a8a;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .footnote {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+        
+        @media print {
+            body {
+                padding: 20px;
+            }
+            
+            .card {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 ACS DATA EXPLORER — COMPLETE APPLICATION GUIDE</h1>
+
+<p style="font-size: 18px; color: #475569; margin-bottom: 40px;">Interactive mapping and analysis tool for U.S. Census data (ACS 2022)</p>
+
+<hr>
+
+<h2>🔍 OVERVIEW</h2>
+
+<p>The <strong>ACS Data Explorer</strong> is an interactive web application that visualizes U.S. Census data across ZIP codes. The application allows users to draw concentric rings on a map and analyze demographic patterns within specified radii, including a <strong>radius-weighted analysis</strong> feature.</p>
+
+<h3>🎯 Core Functionality</h3>
+
+<div class="grid-2">
+    <div class="card">
+        <h4><span class="icon">📍</span> View Data</h4>
+        <p>See which ZIP codes contain specified numbers of residents with higher education, high-income households, or both.</p>
+    </div>
+    <div class="card">
+        <h4><span class="icon">🎯</span> Draw Rings</h4>
+        <p>Create custom analysis zones around any point to aggregate and examine data within those areas.</p>
+    </div>
+    <div class="card">
+        <h4><span class="icon">📊</span> Compare Areas</h4>
+        <p>Observe how demographic patterns change with distance from a center point.</p>
+    </div>
+    <div class="card">
+        <h4><span class="icon">⚖️</span> Weighted Analysis</h4>
+        <p>Access analysis that applies different multipliers to each ring's radius.</p>
+    </div>
+</div>
+
+<hr>
+
+<h2>📁 1. THE DATA FOUNDATION</h2>
+
+<h3>📋 What Data Is Being Used</h3>
+
+<p>The application uses <strong>2022 American Community Survey (ACS)</strong> data from the U.S. Census Bureau. It tracks two specific metrics:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th>📈 What It Measures</th>
+            <th>🎚️ Threshold</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge badge-blue">🎓 Higher Education</span></td>
+            <td>Residents with Bachelor's degree or higher</td>
+            <td>≥1,000 people per ZIP code</td>
+        </tr>
+        <tr>
+            <td><span class="badge badge-red">💰 High Income</span></td>
+            <td>Households earning $100,000+ annually</td>
+            <td>≥1,000 households per ZIP code</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="info-box">
+    <strong>⚠️ Note:</strong> These thresholds determine whether a ZIP code appears on the map and what color it displays.
+</div>
+
+<h3>🗺️ The ZIP Code Database</h3>
+
+<p>The application loads a database of <strong>33,000+ U.S. ZIP codes</strong> containing:</p>
+
+<ul style="list-style-type: none; padding-left: 0;">
+    <li style="margin-bottom: 8px;"><span class="emoji-large">🧭</span> <strong>Latitude and longitude coordinates</strong> for each ZIP code</li>
+    <li style="margin-bottom: 8px;"><span class="emoji-large">🏙️</span> <strong>Associated city and county names</strong></li>
+    <li style="margin-bottom: 8px;"><span class="emoji-large">🏛️</span> <strong>State identifiers</strong></li>
+</ul>
+
+<p>This geographic data enables the application to position each ZIP code correctly on the map.</p>
+
+<h3>💾 How Caching Works — <span style="color: #dc2626; background: #fee2e2; padding: 4px 10px; border-radius: 20px; font-size: 14px;">IMPORTANT</span></h3>
+
+<p>The application stores all fetched census data <strong>locally in your browser's storage</strong>. This has specific implications:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Aspect</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">💻 Device Binding</span></td>
+            <td>Data is tied to the <strong>specific device and browser</strong> where it was loaded</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔄 No Sync</span></td>
+            <td>Opening on a different computer, phone, or browser starts with an <strong>empty cache</strong></td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔑 No Accounts</span></td>
+            <td>There is <strong>no user login, account system, or cloud synchronization</strong></td>
+        </tr>
+        <tr>
+            <td><span class="badge">📊 Independent Stores</span></td>
+            <td>Each installation maintains its own completely separate data store</td>
+        </tr>
+    </tbody>
+</table>
+
+<h4>📌 What this means in practice:</h4>
+
+<table>
+    <thead>
+        <tr>
+            <th>Scenario</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>🆕 New device</td>
+            <td>First-time loading requires fetching data from the Census API</td>
+        </tr>
+        <tr>
+            <td>💼 Work computer</td>
+            <td>Data loaded at work will not appear on your home computer</td>
+        </tr>
+        <tr>
+            <td>🧹 Browser clear</td>
+            <td>Clearing your browser data removes all cached information</td>
+        </tr>
+        <tr>
+            <td>👥 Side-by-side users</td>
+            <td>Two people using the application will see only data loaded on their respective devices</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>⏱️ Cache Duration and Storage</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Feature</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">⏳ Duration</span></td>
+            <td>90 days before automatic expiration</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⚡ Memory Cache</span></td>
+            <td>Frequently accessed ZIPs kept in RAM for faster access</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔁 Fallback</span></td>
+            <td>If primary API fails, attempts connection through proxy services</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔄 Background</span></td>
+            <td>All data fetching happens in the background — you can continue using the application</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>🗺️ 2. MAP VISUALIZATION</h2>
+
+<h3>🎨 Marker Colors</h3>
+
+<p>ZIP codes that meet at least one threshold appear as colored circles:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Color</th>
+            <th>🏷️ Condition</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="color-box blue-bg"></span> 🔵 <strong>Blue</strong></td>
+            <td>Education only (≥1,000 higher education residents)</td>
+        </tr>
+        <tr>
+            <td><span class="color-box red-bg"></span> 🔴 <strong>Red</strong></td>
+            <td>Income only (≥1,000 high-income households)</td>
+        </tr>
+        <tr>
+            <td><span class="color-box purple-bg"></span> 🟣 <strong>Purple</strong></td>
+            <td>Both criteria met</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>📏 Marker Sizes</h3>
+
+<p>Circle sizes reflect the magnitude of values using a <strong>square root calculation</strong>:</p>
+
+<div style="background: #1e293b; color: white; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 18px; text-align: center; margin: 20px 0;">
+    Radius = √(value) × 0.15
+</div>
+
+<div class="info-box">
+    <strong>💡 Why square root?</strong> This scaling method accommodates the wide range of possible values (from 1,000 to 100,000+) without making tiny markers invisible or huge markers overwhelming.
+</div>
+
+<h3>🔵 Marker Clustering</h3>
+
+<p>When viewing the map at lower zoom levels, individual markers group into <strong>clusters</strong>:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Feature</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">🔢 Numbers</span></td>
+            <td>Indicates how many ZIP codes are in the cluster</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎨 Colors</span></td>
+            <td>Reflect the types of markers grouped within</td>
+        </tr>
+        <tr>
+            <td><span class="badge">👆 Click</span></td>
+            <td>Expands the cluster to reveal individual markers</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>⭕ 3. ANALYSIS RINGS</h2>
+
+<h3>✏️ Drawing Rings</h3>
+
+<p>The ring creation process works as follows:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Action</th>
+            <th>🖱️ Instruction</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td><strong>Initiate</strong></td>
+            <td><kbd>Right-click and hold</kbd> on the map at your desired center point</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td><strong>Adjust</strong></td>
+            <td>While holding right button, <strong>drag outward</strong> — a dashed circle appears and expands</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td><strong>Limit</strong></td>
+            <td>Maximum radius is <strong>5 miles</strong> — the line turns <span style="color: #00ffff;">neon blue</span> when you reach this limit</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">4</span></td>
+            <td><strong>Complete</strong></td>
+            <td><kbd>Left-click</kbd> to finish drawing and create the rings</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🎯 What Drawing Creates</h3>
+
+<p>Completing a drawing action generates <strong>three concentric rings</strong>:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Ring</th>
+            <th>🟢 Color</th>
+            <th>📏 Range</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Inner</strong></td>
+            <td><span class="color-box green-bg"></span> 🟢 Green</td>
+            <td>0-5 miles from center</td>
+        </tr>
+        <tr>
+            <td><strong>Middle</strong></td>
+            <td><span class="color-box orange-bg"></span> 🟠 Orange</td>
+            <td>5-10 miles from center</td>
+        </tr>
+        <tr>
+            <td><strong>Outer</strong></td>
+            <td><span class="color-box red-bg"></span> 🔴 Red</td>
+            <td>10-25 miles from center</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="warning-box">
+    <strong>⚡ Important:</strong> These are <strong>donut rings</strong> — each ring's area <strong>excludes</strong> the area inside it. The middle ring shows data from 5-10 miles only, not including the 0-5 mile inner area.
+</div>
+
+<h3>📊 Ring Data Display</h3>
+
+<p>Clicking any ring opens a popup showing statistics for that donut area:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>📋 What You See</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge badge-blue">🎓 Education Only</span></td>
+            <td>Count of ZIP codes meeting only the education threshold</td>
+        </tr>
+        <tr>
+            <td><span class="badge badge-red">💰 Income Only</span></td>
+            <td>Count of ZIP codes meeting only the income threshold</td>
+        </tr>
+        <tr>
+            <td><span class="badge badge-purple">⭐ Both Criteria</span></td>
+            <td>Count of ZIP codes meeting both thresholds</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📊 Total ZIPs</span></td>
+            <td>Total number of qualifying ZIP codes in the donut</td>
+        </tr>
+        <tr>
+            <td><span class="badge">👥 Total Education</span></td>
+            <td>Sum of all educated individuals across those ZIP codes</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🏠 Total High-Income</span></td>
+            <td>Sum of all high-income households across those ZIP codes</td>
+        </tr>
+        <tr>
+            <td><span class="badge">💵 Median Income</span></td>
+            <td>Median income value across the included ZIP codes</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🗺️ Counties</span></td>
+            <td>List of counties represented in the donut</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>⚖️ 4. RADIUS-WEIGHTED ANALYSIS</h2>
+
+<h3>🔄 The Weighted View</h3>
+
+<p>The application includes a <strong>"Weighted" tab</strong> in ring popups that applies multipliers to each ring's radius:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Ring</th>
+            <th>📏 Standard Radius</th>
+            <th>✖️ Multiplier</th>
+            <th>🎯 Effective Radius</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="color-box green-bg"></span> <strong>Inner</strong></td>
+            <td>5 miles</td>
+            <td><strong>×3</strong></td>
+            <td>0-15 miles</td>
+        </tr>
+        <tr>
+            <td><span class="color-box orange-bg"></span> <strong>Middle</strong></td>
+            <td>10 miles</td>
+            <td><strong>×2</strong></td>
+            <td>15-20 miles</td>
+        </tr>
+        <tr>
+            <td><span class="color-box red-bg"></span> <strong>Outer</strong></td>
+            <td>25 miles</td>
+            <td><strong>×1</strong></td>
+            <td>10-25 miles</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>📈 What This Shows</h3>
+
+<p>The weighted view presents data for these modified radii while maintaining them as <strong>non-overlapping donuts</strong>:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Weighted Ring</th>
+            <th>📏 Range</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="color-box green-bg"></span> <strong>Inner Weighted</strong></td>
+            <td>0-15 miles</td>
+        </tr>
+        <tr>
+            <td><span class="color-box orange-bg"></span> <strong>Middle Weighted</strong></td>
+            <td>15-20 miles</td>
+        </tr>
+        <tr>
+            <td><span class="color-box red-bg"></span> <strong>Outer Weighted</strong></td>
+            <td>10-25 miles</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="info-box">
+    <strong>📊 Note:</strong> The weighted view includes a <strong>comparison section</strong> showing how these numbers differ from the standard donut calculations.
+</div>
+
+<hr>
+
+<h2>📱 5. SIDEBAR COMPONENTS</h2>
+
+<h3>ℹ️ About Panel</h3>
+
+<p>Contains reference information about the color coding and basic operations.</p>
+
+<h3>📋 Analysis Rings List</h3>
+
+<p>A scrollable list showing all drawn rings:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Element</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">#️⃣ Ring Number</span></td>
+            <td>Chronological order</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📍 Primary Location</span></td>
+            <td>Derived from counties or cities within</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔴🟠🟢 Counts</span></td>
+            <td>Numbers of ZIP codes in each donut</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⏱️ Timestamp</span></td>
+            <td>When the ring was created</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>👆 Click any list item to move the map view to that ring's location.</p>
+
+<h3>📊 Statistics Panel</h3>
+
+<p>Displays running totals of:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Statistic</th>
+            <th>Icon</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Education-only ZIP codes</td>
+            <td>🎓</td>
+        </tr>
+        <tr>
+            <td>Income-only ZIP codes</td>
+            <td>💰</td>
+        </tr>
+        <tr>
+            <td>Both-criteria ZIP codes</td>
+            <td>⭐</td>
+        </tr>
+        <tr>
+            <td>Total markers displayed</td>
+            <td>📍</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>⌨️ Keyboard Navigation Reference</h3>
+
+<p>Lists available keyboard shortcuts for map control and navigation.</p>
+
+<hr>
+
+<h2>🖱️ 6. NAVIGATION AND CONTROLS</h2>
+
+<h3>🖱️ Mouse Operations</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>🎯 Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><kbd>Left-click marker</kbd></td>
+            <td>Opens ZIP code detail popup</td>
+        </tr>
+        <tr>
+            <td><kbd>Left-click ring</kbd></td>
+            <td>Opens ring analysis popup</td>
+        </tr>
+        <tr>
+            <td><kbd>Right-click + drag</kbd></td>
+            <td>Initiates ring drawing</td>
+        </tr>
+        <tr>
+            <td><kbd>Right-click on existing ring</kbd></td>
+            <td>Deletes that ring</td>
+        </tr>
+        <tr>
+            <td><kbd>Left-click empty map</kbd></td>
+            <td>Closes all open popups</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>⌨️ Keyboard Controls</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Key</th>
+            <th>🎯 Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><kbd>W</kbd> / <kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td>
+            <td>Move to nearest marker in that direction (north/west/south/east)</td>
+        </tr>
+        <tr>
+            <td><kbd>⬆️</kbd> <kbd>⬇️</kbd> <kbd>⬅️</kbd> <kbd>➡️</kbd></td>
+            <td>Pan the map (hold <kbd>Shift</kbd> for faster movement)</td>
+        </tr>
+        <tr>
+            <td><kbd>+</kbd> / <kbd>-</kbd></td>
+            <td>Zoom in/out</td>
+        </tr>
+        <tr>
+            <td><kbd>R</kbd></td>
+            <td>Reset view to continental United States</td>
+        </tr>
+        <tr>
+            <td><kbd>F</kbd></td>
+            <td>Toggle fullscreen mode</td>
+        </tr>
+        <tr>
+            <td><kbd>H</kbd></td>
+            <td>Show or hide all rings</td>
+        </tr>
+        <tr>
+            <td><kbd>C</kbd></td>
+            <td>Remove all rings</td>
+        </tr>
+        <tr>
+            <td><kbd>Esc</kbd></td>
+            <td>Cancel drawing mode</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🧭 WASD Navigation Logic</h3>
+
+<p>When you press <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, or <kbd>D</kbd>, the application:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td>Identifies the current map center</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td>Searches for visible markers in the specified direction</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td>Selects the closest marker in that direction</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">4</span></td>
+            <td>Moves the map to that marker and displays its information</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>🔧 7. DATA MANAGEMENT</h2>
+
+<h3>🔑 API Key</h3>
+
+<p>The Census Bureau requires an API key for data access:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">Default</span></td>
+            <td>Application includes a default key</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Custom</span></td>
+            <td>Click "API Key" button to enter a different key</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Storage</span></td>
+            <td>Entered keys are saved locally in your browser</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🧹 Cache Controls</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Control</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">🗑️ Clear Cache</span></td>
+            <td>Manually removes all stored data from your browser</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📊 Cache Info</span></td>
+            <td>Shows number of cached ZIP codes and access statistics</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⏱️ 90-day Expiration</span></td>
+            <td>Data automatically refreshes when it reaches 90 days old</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>⏳ Loading Process</h3>
+
+<p>When loading data for the first time on any device, you will see:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Element</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">📊 Progress bar</span></td>
+            <td>Percentage complete</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📝 Status text</span></td>
+            <td>Description of current operation</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔢 ZIP count</span></td>
+            <td>Number of ZIP codes processed</td>
+        </tr>
+        <tr>
+            <td><span class="badge">💾 Cache status</span></td>
+            <td>Current cache information</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>✨ 8. ADDITIONAL FEATURES</h2>
+
+<h3>📍 Location Services</h3>
+
+<p>Clicking the crosshairs button:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td>Requests your browser's geolocation permission</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td>Moves the map to your current location if granted</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td>Shows error message if location is unavailable</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🖥️ Fullscreen Mode</h3>
+
+<p>Toggle fullscreen display for expanded map viewing. The interface adapts to the available space.</p>
+
+<h3>🌙 System Preference Support</h3>
+
+<p>The application responds to your operating system settings:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Preference</th>
+            <th>Support</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">☀️ Light / 🌙 Dark</span></td>
+            <td>Color schemes based on your preference</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎯 High contrast</span></td>
+            <td>Enhanced visibility when enabled</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🐢 Reduced motion</span></td>
+            <td>Simplified animations when requested</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>📱 Touch Device Interface</h3>
+
+<p>On touchscreen devices:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Feature</th>
+            <th>Adaptation</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">👆 Touch targets</span></td>
+            <td>Larger (minimum 44px)</td>
+        </tr>
+        <tr>
+            <td><span class="badge">✨ Hover effects</span></td>
+            <td>Simplified or removed</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📱 Layout</span></td>
+            <td>Sidebar stacks below map on smaller screens</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>🔄 DATA FLOW SUMMARY</h2>
+
+<div style="background: #f8fafc; padding: 30px; border-radius: 12px; font-family: monospace; font-size: 16px; margin: 30px 0;">
+    <p><span class="step-number">1</span> 📁 ZIP location database loads from included file</p>
+    <p style="margin-left: 40px;">↓</p>
+    <p><span class="step-number">2</span> 🌐 Census data requested from API OR retrieved from local cache</p>
+    <p style="margin-left: 40px;">↓</p>
+    <p><span class="step-number">3</span> 🎨 Combined data generates map markers with colors and sizes</p>
+    <p style="margin-left: 40px;">↓</p>
+    <p><span class="step-number">4</span> 👤 User interactions trigger calculations for ring analyses</p>
+    <p style="margin-left: 40px;">↓</p>
+    <p><span class="step-number">5</span> 💾 All drawn rings saved locally in your browser</p>
+</div>
+
+<hr>
+
+<h2>⚠️ IMPORTANT NOTES ABOUT DATA PERSISTENCE</h2>
+
+<h3>💾 What Is Saved Locally</h3>
+
+<p>Your browser stores:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Item</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">📊 Census data</span></td>
+            <td>All data fetched from the API</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⭕ Rings</span></td>
+            <td>Any rings you have drawn on the map</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⚙️ Preferences</span></td>
+            <td>Layer visibility settings</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔑 API key</span></td>
+            <td>Your key (if you entered one)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🚫 What Is NOT Saved or Shared</h3>
+
+<p>The application does <strong>NOT</strong>:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Not Supported</th>
+            <th>Why</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">👤 User accounts</span></td>
+            <td>No identification system</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔄 Cross-device sync</span></td>
+            <td>No data transfer between devices</td>
+        </tr>
+        <tr>
+            <td><span class="badge">☁️ Cloud storage</span></td>
+            <td>No server uploads</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📊 Usage tracking</span></td>
+            <td>No user identification</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🤝 Sharing</span></td>
+            <td>No mechanism to share rings with others</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>💻 Cross-Device Behavior</h3>
+
+<p>If you access the application on multiple devices:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Device</th>
+            <th>Behavior</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">Device A</span></td>
+            <td>Shows only data loaded on Device A, with rings drawn on Device A</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Device B</span></td>
+            <td>Shows only data loaded on Device B, with rings drawn on Device B</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Device C</span></td>
+            <td>Same independent behavior</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="warning-box">
+    <strong>🔒 Critical:</strong> Each browser installation maintains its own <strong>completely separate</strong> data store. There is <strong>no mechanism</strong> for these installations to communicate or share information.
+</div>
+
+<h3>🧹 Browser Storage Considerations</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Factor</th>
+            <th>Impact</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">🧹 Clear browser data</span></td>
+            <td>Removes all saved application data</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🌙 Private/incognito mode</span></td>
+            <td>May not retain data after closing</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📦 Storage limits</span></td>
+            <td>Browser limits affect cache capacity</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🌐 Browser-specific</span></td>
+            <td>IndexedDB storage is tied to specific browser</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>🏗️ APPLICATION STRUCTURE</h2>
+
+<h3>🧩 Primary Components</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Component</th>
+            <th>🔧 Role</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">🗺️ ZIPCodeIndex</span></td>
+            <td>Manages the geographic location database</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🌐 ACSAPIService</span></td>
+            <td>Handles Census API communication and local caching</td>
+        </tr>
+        <tr>
+            <td><span class="badge">📐 SpatialUtils</span></td>
+            <td>Performs distance calculations and data aggregation</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎨 ACSMapVisualizer</span></td>
+            <td>Controls map display, ring drawing, and interactions</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎮 ACSApplication</span></td>
+            <td>Coordinates all components and manages the user interface</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>📊 Data Flow Example — Drawing a Ring</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Process</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td>Drawing action captures center point and radius</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td>Application calculates distances to every ZIP code marker</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td>ZIP codes grouped into three donut rings based on distance</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">4</span></td>
+            <td>Statistics aggregated for each donut</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">5</span></td>
+            <td>Weighted calculations apply radius multipliers</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">6</span></td>
+            <td>Results displayed in popup and saved to local storage</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>🔧 TECHNICAL DETAILS FOR REFERENCE</h2>
+
+<h3>📐 Distance Calculations</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Aspect</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">Formula</span></td>
+            <td>Haversine formula</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Feature</span></td>
+            <td>Accounts for Earth's curvature (not flat approximation)</td>
+        </tr>
+        <tr>
+            <td><span class="badge">Output</span></td>
+            <td>Returns meters, converted to miles for display</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>📏 Marker Size Formula</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Type</th>
+            <th>Min Size</th>
+            <th>Max Size</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge badge-purple">⭐ Both criteria</span></td>
+            <td>8px</td>
+            <td>20px</td>
+        </tr>
+        <tr>
+            <td><span class="badge badge-blue">🎓 Education only</span></td>
+            <td>5px</td>
+            <td>16px</td>
+        </tr>
+        <tr>
+            <td><span class="badge badge-red">💰 Income only</span></td>
+            <td>5px</td>
+            <td>16px</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>⭕ Ring Drawing Limits</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Feature</th>
+            <th>Implementation</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">📏 Real-time calculation</span></td>
+            <td>Distance calculated during dragging</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔵 Visual indicator</span></td>
+            <td>Neon blue when approaching/reaching limit</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎯 Hard cap</span></td>
+            <td>Any excess truncated to exactly 5 miles</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>💾 Cache Storage Structure</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Field</th>
+            <th>Purpose</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">📊 Raw values</span></td>
+            <td>Census data for each ZIP code</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⏱️ Timestamp</span></td>
+            <td>When data was fetched</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⏳ Expiration</span></td>
+            <td>90-day expiration timestamp</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔍 Index</span></td>
+            <td>ZIP code index for efficient querying</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>📝 COMMON OPERATIONS WALKTHROUGH</h2>
+
+<h3>🆕 First-Time Setup on a New Device</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Action</th>
+            <th>⏱️ Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td>Open application in browser</td>
+            <td>Instant</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td>Wait for ZIP database to load</td>
+            <td>Seconds</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td>Click "Load Data" or wait for automatic loading</td>
+            <td>—</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">4</span></td>
+            <td>Observe progress bar as data fetches</td>
+            <td>Several minutes</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">5</span></td>
+            <td>Markers appear on map</td>
+            <td>Complete</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>✏️ Drawing and Analyzing a Ring</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Step</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="step-number">1</span></td>
+            <td>Right-click and hold at chosen center point</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">2</span></td>
+            <td>Drag outward while watching circle expand</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">3</span></td>
+            <td>Left-click to finish when satisfied</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">4</span></td>
+            <td>Three colored rings appear</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">5</span></td>
+            <td>Click any ring to open analysis popup</td>
+        </tr>
+        <tr>
+            <td><span class="step-number">6</span></td>
+            <td>Navigate between standard and weighted tabs</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🗑️ Removing Rings</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Method</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">👆 Individual</span></td>
+            <td>Right-click any ring to delete that specific set</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⌨️ Keyboard</span></td>
+            <td>Press <kbd>C</kbd> to delete all rings</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔄 Clear all</span></td>
+            <td>Use clear all function</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>🔄 Refreshing Data</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Action</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Click "Reload Data"</td>
+            <td>Fetches fresh information from Census API</td>
+        </tr>
+        <tr>
+            <td>Cache check</td>
+            <td>Only expired/missing data is re-fetched</td>
+        </tr>
+        <tr>
+            <td>Rings</td>
+            <td>Remain on map and update with new data automatically</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>❓ TROUBLESHOOTING COMMON ISSUES</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>🚩 Observed Issue</th>
+            <th>🔍 Possible Explanation</th>
+            <th>💡 Solution</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>No markers on map</strong></td>
+            <td>No data loaded, or all ZIPs are below thresholds</td>
+            <td>Click "Load Data"</td>
+        </tr>
+        <tr>
+            <td><strong>Rings won't draw</strong></td>
+            <td>Another drawing session active</td>
+            <td>Press <kbd>Esc</kbd> to cancel</td>
+        </tr>
+        <tr>
+            <td><strong>API errors</strong></td>
+            <td>Invalid key or rate limits reached</td>
+            <td>Wait and retry</td>
+        </tr>
+        <tr>
+            <td><strong>Slow performance</strong></td>
+            <td>Large number of markers affecting older devices</td>
+            <td>Close unused browser tabs</td>
+        </tr>
+        <tr>
+            <td><strong>Rings disappeared</strong></td>
+            <td>Layer visibility toggle off</td>
+            <td>Check "Analysis Rings" checkbox</td>
+        </tr>
+        <tr>
+            <td><strong>Data missing</strong></td>
+            <td>Browser storage cleared, or different device</td>
+            <td>Reload data</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>📌 SUMMARY</h2>
+
+<p>The <strong>ACS Data Explorer</strong> provides tools for interactive geographic analysis of census data:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Features</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><span class="badge">🗺️ Visualization</span></td>
+            <td>Color-coded markers, size scaling, clustering</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⭕ Analysis</span></td>
+            <td>Donut rings (5/10/25 miles), weighted multipliers</td>
+        </tr>
+        <tr>
+            <td><span class="badge">⚖️ Weighted view</span></td>
+            <td>Inner ×3, Middle ×2, Outer ×1</td>
+        </tr>
+        <tr>
+            <td><span class="badge">💾 Storage</span></td>
+            <td>90-day local cache, device-specific</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🎮 Controls</span></td>
+            <td>Mouse, keyboard (WASD), touch support</td>
+        </tr>
+        <tr>
+            <td><span class="badge">🔒 Privacy</span></td>
+            <td>No accounts, no sync, no tracking</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="warning-box" style="font-size: 16px;">
+    <strong>🔐 Critical Note:</strong> Each installation maintains its own <strong>independent</strong> data store. Information loaded on one device <strong>does not transfer</strong> to any other device. The application does not identify or track users. All data remains within the browser where it was originally loaded, subject to that browser's storage limitations and clearing policies.
+</div>
+
+<hr>
+
+<p style="text-align: center; color: #64748b; font-size: 14px; margin-top: 50px;">
+    <em>ACS Data Explorer application and documentation was prepared for by 
+    <a href="https://www.linkedin.com/in/jian-michael-celeste-069679217/" target="_blank" style="color: #0a66c2; text-decoration: none; font-weight: 600;">JMC</a>
+    </em> 📊🗺️<br>
+    <span style="font-size: 12px;">Version 5.0 | Last updated: February 2026</span>
+</p>
+
+</body>
+</html>

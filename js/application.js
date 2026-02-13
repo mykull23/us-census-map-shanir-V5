@@ -1,5 +1,5 @@
 // ============================================================================
-// MAIN APPLICATION - Hotspots at top, Stats & Keyboard at bottom
+// MAIN APPLICATION - Circles List replaces Hotspots
 // ============================================================================
 
 class ACSApplication {
@@ -24,7 +24,7 @@ class ACSApplication {
 
     async init() {
         try {
-            console.log('Starting ACS County Hotspots...');
+            console.log('Starting ACS Circle Analyzer...');
             this.updateLoadingProgress('Loading ZIP code database...', 5);
 
             await this.zipIndex.loadFromJSON('data/uszips.json');
@@ -114,11 +114,10 @@ class ACSApplication {
     }
 
     // ============================================================================
-    // UI SETUP - Hotspot container at TOP of sidebar
+    // UI SETUP - No hotspot list creation
     // ============================================================================
 
     setupUI() {
-        this.createHotspotListContainer(); // Creates at top of sidebar
         this.updateStatisticsUI();
         
         // API Key button
@@ -131,9 +130,9 @@ class ACSApplication {
             this.reloadData();
         });
         
-        // Draw Circle button
+        // Draw Circle button (kept for reference)
         document.getElementById('drawCircleBtn')?.addEventListener('click', () => {
-            this.showNotification('Right-click + drag to draw circle, left-click to finish', 'info');
+            this.showNotification('Right-click + drag to draw circle (max 5mi), left-click to finish', 'info');
         });
         
         // Clear Circles button
@@ -143,14 +142,14 @@ class ACSApplication {
             }
         });
         
-        // Show Hotspots button
+        // Show Hotspots button (kept for future use)
         document.getElementById('showHotspotsBtn')?.addEventListener('click', () => {
             if (this.mapVisualizer) {
                 this.mapVisualizer.calculateAndShowHotspots();
             }
         });
         
-        // Circle Stats button (header)
+        // Circle Stats button
         document.getElementById('circleStatsBtn')?.addEventListener('click', () => {
             this.showCircleStatistics();
         });
@@ -186,126 +185,9 @@ class ACSApplication {
         });
     }
 
-    createHotspotListContainer() {
-        const sidebar = document.querySelector('.sidebar-content');
-        if (!sidebar) return;
-        
-        // Remove existing container if any
-        const existing = document.getElementById('hotspot-list-container');
-        if (existing) {
-            existing.remove();
-        }
-        
-        // Create new container at the TOP of sidebar
-        const container = document.createElement('div');
-        container.id = 'hotspot-list-container';
-        container.className = 'hotspot-list-container';
-        
-        // Insert at the beginning of sidebar-content
-        sidebar.insertBefore(container, sidebar.firstChild);
-        
-        this.showEmptyHotspotList();
-    }
-
-    updateHotspotList(hotspots) {
-        const container = document.getElementById('hotspot-list-container');
-        if (!container) {
-            this.createHotspotListContainer();
-            return;
-        }
-
-        if (!hotspots || hotspots.length === 0) {
-            this.showEmptyHotspotList();
-            return;
-        }
-
-        this.currentHotspots = hotspots;
-        
-        let html = `
-            <div class="hotspot-list-header" style="background: linear-gradient(135deg, #dc2626, #ef4444);">
-                <h4><i class="fas fa-fire"></i> Top 50 County Hotspots</h4>
-                <div class="hotspot-subtitle">Click hotspot to fly to area | Named by dominant county</div>
-            </div>
-            <div class="hotspot-list-scroll">
-        `;
-
-        hotspots.slice(0, 50).forEach((hotspot, index) => {
-            const rank = index + 1;
-            const countyName = hotspot.name.split(',')[0];
-            const stateCode = hotspot.name.split(',')[1] || '';
-            const percentOfCluster = Math.round((hotspot.countyCount / hotspot.totalCount) * 100);
-            
-            html += `
-                <div class="hotspot-list-item" data-rank="${rank}">
-                    <div class="hotspot-rank" style="background: ${rank === 1 ? 'linear-gradient(135deg, #FFD700, #FFA500)' : rank === 2 ? 'linear-gradient(135deg, #C0C0C0, #A0A0A0)' : rank === 3 ? 'linear-gradient(135deg, #CD7F32, #A0522D)' : '#f3f4f6'}; color: ${rank <= 3 ? 'white' : '#374151'};">
-                        ${rank}
-                    </div>
-                    <div class="hotspot-content">
-                        <div class="hotspot-location">
-                            <i class="fas fa-map-marker-alt" style="color: #ef4444;"></i> 
-                            <strong>${countyName}</strong>${stateCode}
-                            <span style="margin-left: 6px; font-size: 10px; background: #f3f4f6; padding: 2px 6px; border-radius: 10px;">
-                                ${hotspot.totalCount} ZIPs
-                            </span>
-                        </div>
-                        <div class="hotspot-details">
-                            <span class="hotspot-category">
-                                <i class="fas fa-chart-line"></i> ${percentOfCluster}% ${countyName}
-                            </span>
-                            <span class="hotspot-value" style="background: #ef4444; color: white;">
-                                Intensity: ${Math.round(hotspot.intensity)}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        html += `</div>`;
-        html += `<div class="hotspot-list-footer">
-                    <i class="fas fa-info-circle"></i> 
-                    Top 50 county clusters | Updated: ${new Date().toLocaleTimeString()}
-                </div>`;
-        
-        container.innerHTML = html;
-        
-        // Add click listeners
-        container.querySelectorAll('.hotspot-list-item').forEach(item => {
-            const rank = parseInt(item.getAttribute('data-rank'));
-            item.addEventListener('click', () => {
-                if (this.mapVisualizer) {
-                    this.mapVisualizer.flyToHotspot(rank);
-                    
-                    // Highlight selected
-                    container.querySelectorAll('.hotspot-list-item').forEach(el => {
-                        el.classList.remove('hotspot-list-item-active');
-                    });
-                    item.classList.add('hotspot-list-item-active');
-                }
-            });
-        });
-    }
-
-    showEmptyHotspotList() {
-        const container = document.getElementById('hotspot-list-container');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="hotspot-list-header" style="background: #ef4444;">
-                <h4><i class="fas fa-fire"></i> Top 50 County Hotspots</h4>
-                <div class="hotspot-subtitle">Analyzing county clusters...</div>
-            </div>
-            <div class="hotspot-list-empty">
-                <i class="fas fa-spinner fa-pulse" style="font-size: 36px; color: #ef4444; margin-bottom: 16px;"></i>
-                <div class="empty-title">Detecting county hotspots</div>
-                <div class="empty-subtitle">Hotspots appear automatically after data loads</div>
-            </div>
-        `;
-    }
-
     showCircleStatistics() {
         if (!this.mapVisualizer || this.mapVisualizer.circles.size === 0) {
-            this.showNotification('No circles drawn. Right-click + drag on map, left-click to finish.', 'info');
+            this.showNotification('No circles drawn. Right-click + drag on map (max 5mi), left-click to finish.', 'info');
             return;
         }
         
@@ -315,11 +197,20 @@ class ACSApplication {
         let totalBoth = 0;
         
         this.mapVisualizer.circles.forEach((circle) => {
-            if (circle.stats) {
-                totalMarkers += circle.stats.totalMarkers;
-                totalEducation += circle.stats.totalEducation;
-                totalHighIncome += circle.stats.totalHighIncome;
-                totalBoth += circle.stats.bothCriteria;
+            // Use donut stats for accurate counting
+            if (circle.donutStats) {
+                totalMarkers += circle.donutStats.inner.totalMarkers + 
+                               circle.donutStats.middle.totalMarkers + 
+                               circle.donutStats.outer.totalMarkers;
+                totalEducation += circle.donutStats.inner.totalEducation + 
+                                 circle.donutStats.middle.totalEducation + 
+                                 circle.donutStats.outer.totalEducation;
+                totalHighIncome += circle.donutStats.inner.totalHighIncome + 
+                                  circle.donutStats.middle.totalHighIncome + 
+                                  circle.donutStats.outer.totalHighIncome;
+                totalBoth += circle.donutStats.inner.bothCriteria + 
+                            circle.donutStats.middle.bothCriteria + 
+                            circle.donutStats.outer.bothCriteria;
             }
         });
         

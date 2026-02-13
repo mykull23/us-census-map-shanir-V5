@@ -43,19 +43,19 @@ class ACSMapVisualizer {
             education: true,
             income: true,
             both: true,
-            rings: true  // Changed from 'hotspots' to 'rings'
+            rings: true
         };
         
         // Spatial utilities
         this.spatialUtils = new SpatialUtils();
         
-        // RINGS (formerly circles) state
+        // RINGS state
         this.isDrawing = false;
         this.tempCircle = null;
         this.startPoint = null;
-        this.rings = new Map();  // renamed from circles
+        this.rings = new Map();
         this.ringCounter = 0;
-        this.ringCreationOrder = [];  // renamed from circleCreationOrder
+        this.ringCreationOrder = [];
         
         // Prevent multiple drawing sessions
         this.drawingLock = false;
@@ -65,45 +65,44 @@ class ACSMapVisualizer {
         this.activeRingType = 'weighted';
         
         // Storage keys
-        this.storageKey = 'acs_map_rings_v1';  // changed from circles
+        this.storageKey = 'acs_map_rings_v1';
         this.layerStorageKey = 'acs_map_layers_v1';
         
         // Drawing limits
         this.MAX_RADIUS_MILES = 5;
         this.MILES_TO_METERS = 1609.34;
-        this.MAX_RADIUS_METERS = this.MAX_RADIUS_MILES * this.MILES_TO_METERS; // ~8046.7 meters
+        this.MAX_RADIUS_METERS = this.MAX_RADIUS_MILES * this.MILES_TO_METERS;
         
         this.layerColors = {
             education: '#3b82f6',
             income: '#ef4444',
             both: '#8b5cf6',
-            // HOTSPOT COLORS - PRESERVED
             hotspot: '#ef4444',
             hotspotFill: 'rgba(239, 68, 68, 0.15)',
-            ring: {  // renamed from circle
-                inner: '#10b981',     // Green - 5 miles
-                middle: '#f59e0b',    // Orange - 10 miles
-                outer: '#ef4444'       // Red - 20 miles
+            ring: {
+                inner: '#10b981',
+                middle: '#f59e0b',
+                outer: '#ef4444'
             },
-            maxLimit: '#8b5cf6'        // Purple when hitting max
+            maxLimit: '#00ffff' // Neon blue for max limit
         };
 
         this.initMap();
-        this.setupRingDrawing();  // renamed from setupCircleDrawing
+        this.setupRingDrawing();
         this.setupKeyboardNavigation();
         this.setupCoordinatesDisplay();
         this.setupLayerToggleListeners();
         
         // Ring list manager
-        this.ringListManager = null;  // renamed from circleListManager
+        this.ringListManager = null;
         
         // Load saved layer visibility
         this.loadLayerVisibility();
         
         // Load saved rings after map is initialized
         setTimeout(() => {
-            this.loadSavedRings();  // renamed from loadSavedCircles
-            this.initRingListManager();  // renamed from initCircleListManager
+            this.loadSavedRings();
+            this.initRingListManager();
         }, 1000);
     }
 
@@ -153,7 +152,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // RING LIST MANAGER (renamed from CircleListManager)
+    // RING LIST MANAGER
     // ============================================================================
 
     initRingListManager() {
@@ -237,7 +236,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // RING DRAWING - WITH 5 MILE HARD LIMIT (renamed from setupCircleDrawing)
+    // RING DRAWING - WITH 5 MILE HARD LIMIT
     // ============================================================================
 
     setupRingDrawing() {
@@ -257,7 +256,6 @@ class ACSMapVisualizer {
             return false;
         });
 
-        // UPDATED: mousemove handler with 5 mile hard limit
         this.map.on('mousemove', (e) => {
             if (this.isDrawing && this.tempCircle && this.startPoint) {
                 const rawDistance = this.startPoint.distanceTo(e.latlng);
@@ -265,12 +263,13 @@ class ACSMapVisualizer {
                 const radius = Math.min(rawDistance, this.MAX_RADIUS_METERS);
                 this.tempCircle.setRadius(radius);
                 
-                // Visual feedback when hitting the limit
+                // Visual feedback when hitting the limit - NEON BLUE
                 if (radius >= this.MAX_RADIUS_METERS - 100) {
                     this.tempCircle.setStyle({
-                        color: this.layerColors.maxLimit,
-                        fillColor: this.layerColors.maxLimit,
-                        weight: 4
+                        color: '#00ffff',
+                        fillColor: '#00ffff',
+                        weight: 4,
+                        fillOpacity: 0.2
                     });
                 } else {
                     this.tempCircle.setStyle({
@@ -286,7 +285,6 @@ class ACSMapVisualizer {
         this.map.on('click', (e) => {
             if (this.isDrawing && this.tempCircle && this.startPoint) {
                 const rawDistance = this.startPoint.distanceTo(e.latlng);
-                // Use capped radius
                 const radius = Math.min(rawDistance, this.MAX_RADIUS_METERS);
                 
                 if (radius > 100) {
@@ -325,7 +323,7 @@ class ACSMapVisualizer {
         
         this.map.getContainer().style.cursor = 'crosshair';
         
-        this.showNotification('Draw center point (max 5 miles) - Creates 5mi/10mi/20mi rings', 'info');
+        this.showNotification('Draw center point (max 5 miles) - Creates 5mi/10mi/25mi rings', 'info');
     }
 
     finishDrawing(baseRadiusMeters) {
@@ -337,10 +335,10 @@ class ACSMapVisualizer {
         const ringId = `ring_${Date.now()}_${this.ringCounter++}`;
         const center = this.startPoint;
         
-        // FIXED RADII: Always 5, 10, 20 miles
+        // FIXED RADII: 5, 10, 25 miles
         const innerRadiusMiles = 5;
         const middleRadiusMiles = 10;
-        const outerRadiusMiles = 20;
+        const outerRadiusMiles = 25; // Changed from 20 to 25
         
         const milesToMeters = 1609.34;
         const innerRadiusMeters = innerRadiusMiles * milesToMeters;
@@ -369,7 +367,7 @@ class ACSMapVisualizer {
             interactive: true
         }).addTo(this.map);
         
-        // Create OUTER ring (Red) - 20 miles
+        // Create OUTER ring (Red) - 25 miles
         const outerRing = L.circle(center, {
             radius: outerRadiusMeters,
             color: this.layerColors.ring.outer,
@@ -385,10 +383,10 @@ class ACSMapVisualizer {
         const middleDonutStats = this.calculateDonutStats(center, innerRadiusMeters, middleRadiusMeters);
         const outerDonutStats = this.calculateDonutStats(center, middleRadiusMeters, outerRadiusMeters);
         
-        // Calculate WEIGHTED STATS (radius multiplied)
+        // Calculate WEIGHTED STATS (radius multiplied) - FIXED VALUES
         const weightedInnerStats = this.calculateCircleStats(center, innerRadiusMiles * 3 * milesToMeters); // 15 miles
         const weightedMiddleStats = this.calculateCircleStats(center, middleRadiusMiles * 2 * milesToMeters); // 20 miles
-        const weightedOuterStats = this.calculateCircleStats(center, outerRadiusMiles * 1 * milesToMeters); // 20 miles
+        const weightedOuterStats = this.calculateCircleStats(center, 25 * milesToMeters); // 25 miles (outer ×1)
         
         // Get locations for each donut
         const innerLocations = this.getLocationsInCircle(center, innerRadiusMeters);
@@ -480,7 +478,7 @@ class ACSMapVisualizer {
         if (this.ringListManager) this.ringListManager.updateList();
         
         this.showNotification(
-            `Analysis rings created: 5mi / 10mi / 20mi (donut analysis)`, 
+            `Analysis rings created: 5mi / 10mi / 25mi (donut analysis)`, 
             'success'
         );
         
@@ -619,7 +617,7 @@ class ACSMapVisualizer {
         tabHeaders.style.cssText = 'display: flex; border-bottom: 1px solid #e5e7eb; background: #f9fafb;';
         
         const tabs = [
-            { id: 'weighted', label: 'Weighted', icon: 'fa-chart-line', color: '#8b5cf6' },
+            { id: 'weighted', label: 'Weighted', icon: 'fa-chart-line', color: '#10b981' },
             { id: 'inner', label: 'Inner', icon: 'fa-circle', color: '#10b981' },
             { id: 'middle', label: 'Middle', icon: 'fa-circle', color: '#f59e0b' },
             { id: 'outer', label: 'Outer', icon: 'fa-circle', color: '#ef4444' }
@@ -692,7 +690,7 @@ class ACSMapVisualizer {
         const config = {
             inner: { color: '#10b981', bg: '#f0fdf4', label: 'Inner Donut (0-5mi)' },
             middle: { color: '#f59e0b', bg: '#fff7ed', label: 'Middle Donut (5-10mi)' },
-            outer: { color: '#ef4444', bg: '#fef2f2', label: 'Outer Donut (10-20mi)' }
+            outer: { color: '#ef4444', bg: '#fef2f2', label: 'Outer Donut (10-25mi)' }
         };
         
         const cfg = config[ringType];
@@ -708,7 +706,7 @@ class ACSMapVisualizer {
                 </div>
                 
                 <div style="background: ${cfg.bg}; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                         <div style="text-align: center;">
                             <div style="font-size: 20px; font-weight: 700; color: #1e40af;">${stats.educationOnly}</div>
                             <div style="font-size: 11px; color: #4b5563;">Edu Only</div>
@@ -719,11 +717,22 @@ class ACSMapVisualizer {
                         </div>
                         <div style="text-align: center;">
                             <div style="font-size: 20px; font-weight: 700; color: #6b21a8;">${stats.bothCriteria}</div>
-                            <div style="font-size: 11px; color: #4b5563;">Both</div>
+                            <div style="font-size: 11px; color: #4b5563;">Both ⭐</div>
                         </div>
                         <div style="text-align: center;">
                             <div style="font-size: 20px; font-weight: 700; color: #1f2937;">${stats.totalMarkers}</div>
                             <div style="font-size: 11px; color: #4b5563;">Total ZIPs</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Total Education ≥ Bachelor's</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(stats.totalEducation).toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Total Households ≥ $100k</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(stats.totalHighIncome).toLocaleString()}</div>
                         </div>
                     </div>
                 </div>
@@ -733,14 +742,6 @@ class ACSMapVisualizer {
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <span style="color: #4b5563;">Median Income:</span>
                         <span style="font-weight: 600;">$${stats.medianIncome ? Math.round(stats.medianIncome).toLocaleString() : 'N/A'}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #4b5563;">Total Higher Ed:</span>
-                        <span style="font-weight: 600;">${Math.round(stats.totalEducation).toLocaleString()}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #4b5563;">Total High Income:</span>
-                        <span style="font-weight: 600;">${Math.round(stats.totalHighIncome).toLocaleString()}</span>
                     </div>
                 </div>
                 
@@ -761,78 +762,99 @@ class ACSMapVisualizer {
         const radii = ring.radii;
         
         const weightedRadii = {
-            inner: radii.inner * 3,
-            middle: radii.middle * 2,
-            outer: radii.outer * 1
+            inner: radii.inner * 3,    // 15 miles
+            middle: radii.middle * 2,   // 20 miles
+            outer: 25                   // 25 miles
         };
         
         return `
             <div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
-                    <div style="background: #8b5cf6; width: 12px; height: 12px; border-radius: 50%;"></div>
+                    <div style="background: #10b981; width: 12px; height: 12px; border-radius: 50%;"></div>
                     <div>
                         <div style="font-weight: 600; color: #1f2937;">Radius-Weighted Analysis</div>
-                        <div style="font-size: 11px; color: #4b5563;">Inner ×3 · Middle ×2 · Outer ×1</div>
+                        <div style="font-size: 11px; color: #4b5563;">Inner ×3 (15mi) · Middle ×2 (20mi) · Outer ×1 (25mi)</div>
                     </div>
                 </div>
                 
-                <!-- Inner Weighted (15 miles) -->
-                <div style="background: #f5f3ff; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <!-- Inner Weighted (15 miles) - GREEN -->
+                <div style="background: #f0fdf4; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #10b981;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-weight: 600; color: #5b21b6;">Inner Weighted (${weightedRadii.inner} miles)</span>
-                        <span style="font-size: 12px;">${ws.inner.totalMarkers} ZIPs</span>
+                        <span style="font-weight: 600; color: #065f46;">Inner Weighted (${weightedRadii.inner} miles)</span>
+                        <span style="font-size: 12px; background: #10b981; color: white; padding: 2px 8px; border-radius: 12px;">${ws.inner.totalMarkers} ZIPs</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 12px;">
-                        <div><span style="color: #1e40af;">🎓</span> ${ws.inner.educationOnly}</div>
-                        <div><span style="color: #991b1b;">💰</span> ${ws.inner.incomeOnly}</div>
-                        <div><span style="color: #5b21b6;">⭐</span> ${ws.inner.bothCriteria}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.inner.totalEducation).toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.inner.totalHighIncome).toLocaleString()}</div>
+                        </div>
                     </div>
-                    <div style="margin-top: 6px; font-size: 11px; color: #4b5563;">
-                        Total Edu: ${Math.round(ws.inner.totalEducation).toLocaleString()} · Total Inc: ${Math.round(ws.inner.totalHighIncome).toLocaleString()}
+                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                        <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.inner.educationOnly}</span>
+                        <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.inner.incomeOnly}</span>
+                        <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.inner.bothCriteria}</span>
                     </div>
                 </div>
                 
-                <!-- Middle Weighted (20 miles) -->
-                <div style="background: #fef3c7; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <!-- Middle Weighted (20 miles) - ORANGE -->
+                <div style="background: #fff7ed; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #f59e0b;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <span style="font-weight: 600; color: #92400e;">Middle Weighted (${weightedRadii.middle} miles)</span>
-                        <span style="font-size: 12px;">${ws.middle.totalMarkers} ZIPs</span>
+                        <span style="font-size: 12px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px;">${ws.middle.totalMarkers} ZIPs</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 12px;">
-                        <div><span style="color: #1e40af;">🎓</span> ${ws.middle.educationOnly}</div>
-                        <div><span style="color: #991b1b;">💰</span> ${ws.middle.incomeOnly}</div>
-                        <div><span style="color: #5b21b6;">⭐</span> ${ws.middle.bothCriteria}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.middle.totalEducation).toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.middle.totalHighIncome).toLocaleString()}</div>
+                        </div>
                     </div>
-                    <div style="margin-top: 6px; font-size: 11px; color: #4b5563;">
-                        Total Edu: ${Math.round(ws.middle.totalEducation).toLocaleString()} · Total Inc: ${Math.round(ws.middle.totalHighIncome).toLocaleString()}
+                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                        <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.middle.educationOnly}</span>
+                        <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.middle.incomeOnly}</span>
+                        <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.middle.bothCriteria}</span>
                     </div>
                 </div>
                 
-                <!-- Outer Weighted (20 miles) -->
-                <div style="background: #fee2e2; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <!-- Outer Weighted (25 miles) - RED -->
+                <div style="background: #fef2f2; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #ef4444;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                         <span style="font-weight: 600; color: #991b1b;">Outer Weighted (${weightedRadii.outer} miles)</span>
-                        <span style="font-size: 12px;">${ws.outer.totalMarkers} ZIPs</span>
+                        <span style="font-size: 12px; background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px;">${ws.outer.totalMarkers} ZIPs</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 12px;">
-                        <div><span style="color: #1e40af;">🎓</span> ${ws.outer.educationOnly}</div>
-                        <div><span style="color: #991b1b;">💰</span> ${ws.outer.incomeOnly}</div>
-                        <div><span style="color: #5b21b6;">⭐</span> ${ws.outer.bothCriteria}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.outer.totalEducation).toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.outer.totalHighIncome).toLocaleString()}</div>
+                        </div>
                     </div>
-                    <div style="margin-top: 6px; font-size: 11px; color: #4b5563;">
-                        Total Edu: ${Math.round(ws.outer.totalEducation).toLocaleString()} · Total Inc: ${Math.round(ws.outer.totalHighIncome).toLocaleString()}
+                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                        <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.outer.educationOnly}</span>
+                        <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.outer.incomeOnly}</span>
+                        <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.outer.bothCriteria}</span>
                     </div>
                 </div>
                 
                 <div style="margin-top: 12px; font-size: 12px; color: #4b5563; background: #f3f4f6; padding: 8px; border-radius: 6px;">
-                    <i class="fas fa-info-circle"></i> Inner radius 5mi ×3 = 15mi · Middle 10mi ×2 = 20mi · Outer 20mi ×1 = 20mi
+                    <i class="fas fa-info-circle"></i> <strong>⭐ Star = Both criteria met</strong> (Education ≥ Bachelor's AND Household Income ≥ $100k)
                 </div>
             </div>
         `;
     }
 
     // ============================================================================
-    // PERSISTENT RING STORAGE (renamed from circle storage)
+    // PERSISTENT RING STORAGE
     // ============================================================================
 
     saveRings() {
@@ -1052,7 +1074,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // LAYER TOGGLE - NOW CONTROLS RINGS (NOT HOTSPOTS)
+    // LAYER TOGGLE - CONTROLS RINGS
     // ============================================================================
 
     setupLayerToggleListeners() {
@@ -1060,7 +1082,7 @@ class ACSMapVisualizer {
             const toggleEducation = document.getElementById('toggleEducation');
             const toggleIncome = document.getElementById('toggleIncome');
             const toggleBoth = document.getElementById('toggleBoth');
-            const toggleRings = document.getElementById('toggleRings');  // Changed from toggleHotspots
+            const toggleRings = document.getElementById('toggleRings');
             
             if (toggleEducation) {
                 toggleEducation.checked = this.layerVisibility.education;
@@ -1113,7 +1135,7 @@ class ACSMapVisualizer {
                     education: parsed.education !== undefined ? parsed.education : true,
                     income: parsed.income !== undefined ? parsed.income : true,
                     both: parsed.both !== undefined ? parsed.both : true,
-                    rings: parsed.rings !== undefined ? parsed.rings : true  // Changed from hotspots
+                    rings: parsed.rings !== undefined ? parsed.rings : true
                 };
             }
         } catch (e) {
@@ -1127,7 +1149,6 @@ class ACSMapVisualizer {
         this.saveLayerVisibility();
     }
 
-    // NEW: Toggle rings visibility
     toggleRings(visible) {
         this.layerVisibility.rings = visible;
         
@@ -1325,7 +1346,7 @@ class ACSMapVisualizer {
     */
 
     // ============================================================================
-    // KEYBOARD NAVIGATION (UPDATED)
+    // KEYBOARD NAVIGATION
     // ============================================================================
 
     setupKeyboardNavigation() {
@@ -1439,11 +1460,11 @@ class ACSMapVisualizer {
                 e.preventDefault();
             }
             if (key === 'h') {
-                this.toggleRings(!this.layerVisibility.rings);  // Changed from toggleHotspots
+                this.toggleRings(!this.layerVisibility.rings);
                 e.preventDefault();
             }
             if (key === 'c') {
-                this.clearAllRings();  // Changed from clearAllCircles
+                this.clearAllRings();
                 e.preventDefault();
             }
             if (key === 'f') {
@@ -1510,7 +1531,7 @@ class ACSMapVisualizer {
     }
 
     // ============================================================================
-    // MARKER METHODS
+    // MARKER METHODS - ORIGINAL RESTORED
     // ============================================================================
 
     createMarker(point) {
@@ -1578,6 +1599,8 @@ class ACSMapVisualizer {
         const latlng = marker.getLatLng();
         
         const location = data.location || 'Unknown location';
+        const hasEducation = data.hasEducation ? '✅ Yes (≥1,000)' : '❌ No';
+        const hasIncome = data.hasIncome ? '✅ Yes (≥1,000)' : '❌ No';
         
         const higherEd = data.totalHigherEd ? data.totalHigherEd.toLocaleString() : '0';
         const highIncome = data.totalHighIncomeHouseholds ? data.totalHighIncomeHouseholds.toLocaleString() : '0';
@@ -1598,17 +1621,63 @@ class ACSMapVisualizer {
         }
         
         const popupContent = `
-            <div style="padding: 12px; min-width: 250px;">
-                <div style="font-weight: bold; margin-bottom: 8px;">${location} (${zip})</div>
-                <div style="font-size: 12px;">🎓 Higher Ed: ${higherEd}</div>
-                <div style="font-size: 12px;">💰 High Income: ${highIncome}</div>
-                <div style="font-size: 12px;">💵 Median Income: ${medianIncome}</div>
-                <div style="font-size: 11px; color: ${bgColor}; margin-top: 6px;">${markerType}</div>
+            <div style="padding: 16px; min-width: 280px; max-width: 320px; background: white;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                    <div style="background: ${bgColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                    <div style="font-weight: bold; color: #1f2937; font-size: 16px;">
+                        ${location}
+                        <span style="font-size: 11px; color: #6b7280; margin-left: 6px; font-weight: normal;">${zip}</span>
+                    </div>
+                </div>
+                
+                ${data.county ? `
+                <div style="background: #f3f4f6; padding: 10px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                        <span style="color: #4b5563;">County:</span>
+                        <span style="font-weight: 600; color: #1f2937;">${data.county}</span>
+                    </div>
+                    ${data.city ? `
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
+                        <span style="color: #4b5563;">City:</span>
+                        <span style="font-weight: 600; color: #1f2937;">${data.city}</span>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                    <div style="background: #1e40af; padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #bfdbfe; font-weight: 600; margin-bottom: 4px;">Higher Education</div>
+                        <div style="font-weight: 700; color: white; font-size: 18px;">${higherEd}</div>
+                        <div style="font-size: 10px; color: #bfdbfe; margin-top: 4px;">${hasEducation}</div>
+                    </div>
+                    <div style="background: #991b1b; padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #fee2e2; font-weight: 600; margin-bottom: 4px;">High Income HH</div>
+                        <div style="font-weight: 700; color: white; font-size: 18px;">${highIncome}</div>
+                        <div style="font-size: 10px; color: #fee2e2; margin-top: 4px;">${hasIncome}</div>
+                    </div>
+                </div>
+                
+                <div style="background: #f9fafb; padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-size: 13px; color: #4b5563;">Median Income:</span>
+                        <span style="font-weight: 700; color: #1f2937; font-size: 16px;">${medianIncome}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="font-size: 13px; color: #4b5563;">Marker Type:</span>
+                        <span style="font-weight: 600; color: ${bgColor};">${markerType}</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 12px; font-size: 10px; color: #6b7280; display: flex; justify-content: space-between;">
+                    <span><i class="fas fa-database"></i> ACS 2022</span>
+                    <span><i class="fas fa-vector-square"></i> Threshold: 1,000+</span>
+                </div>
             </div>
         `;
         
         this.activePopup = L.popup({
-            maxWidth: 300,
+            maxWidth: 350,
             className: 'marker-popup',
             autoClose: false,
             closeButton: true,

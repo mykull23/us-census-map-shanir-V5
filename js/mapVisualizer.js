@@ -338,7 +338,7 @@ class ACSMapVisualizer {
         // FIXED RADII: 5, 10, 25 miles
         const innerRadiusMiles = 5;
         const middleRadiusMiles = 10;
-        const outerRadiusMiles = 25; // Changed from 20 to 25
+        const outerRadiusMiles = 25;
         
         const milesToMeters = 1609.34;
         const innerRadiusMeters = innerRadiusMiles * milesToMeters;
@@ -383,10 +383,15 @@ class ACSMapVisualizer {
         const middleDonutStats = this.calculateDonutStats(center, innerRadiusMeters, middleRadiusMeters);
         const outerDonutStats = this.calculateDonutStats(center, middleRadiusMeters, outerRadiusMeters);
         
-        // Calculate WEIGHTED STATS (radius multiplied) - FIXED VALUES
-        const weightedInnerStats = this.calculateCircleStats(center, innerRadiusMiles * 3 * milesToMeters); // 15 miles
-        const weightedMiddleStats = this.calculateCircleStats(center, middleRadiusMiles * 2 * milesToMeters); // 20 miles
-        const weightedOuterStats = this.calculateCircleStats(center, 25 * milesToMeters); // 25 miles (outer ×1)
+        // Calculate WEIGHTED DONUT STATS (radius multiplied, non-cumulative)
+        // INNER: 5mi ×3 = 15mi total (0-15)
+        const weightedInnerDonutStats = this.calculateDonutStats(center, 0, innerRadiusMiles * 3 * milesToMeters);
+        
+        // MIDDLE: 10mi ×2 = 20mi total, but starting at 15 (where inner weighted ends)
+        const weightedMiddleDonutStats = this.calculateDonutStats(center, innerRadiusMiles * 3 * milesToMeters, middleRadiusMiles * 2 * milesToMeters);
+        
+        // OUTER: ×1 means SAME AS REGULAR OUTER (10-25 miles)
+        const weightedOuterDonutStats = this.calculateDonutStats(center, middleRadiusMiles * milesToMeters, outerRadiusMiles * milesToMeters);
         
         // Get locations for each donut
         const innerLocations = this.getLocationsInCircle(center, innerRadiusMeters);
@@ -412,11 +417,11 @@ class ACSMapVisualizer {
                 middle: middleDonutStats,
                 outer: outerDonutStats
             },
-            // WEIGHTED STATS (radius multiplied)
+            // WEIGHTED DONUT STATS (radius multiplied, non-cumulative)
             weightedStats: {
-                inner: weightedInnerStats,
-                middle: weightedMiddleStats,
-                outer: weightedOuterStats
+                inner: weightedInnerDonutStats,
+                middle: weightedMiddleDonutStats,
+                outer: weightedOuterDonutStats
             },
             locations: {
                 inner: innerLocations,
@@ -538,10 +543,6 @@ class ACSMapVisualizer {
         }
         
         return stats;
-    }
-
-    calculateCircleStats(center, radiusMeters) {
-        return this.calculateDonutStats(center, 0, radiusMeters);
     }
 
     getLocationsInCircle(center, radiusMeters) {
@@ -759,12 +760,13 @@ class ACSMapVisualizer {
 
     getWeightedContent(ring) {
         const ws = ring.weightedStats;
-        const radii = ring.radii;
+        const regularStats = ring.donutStats;
         
-        const weightedRadii = {
-            inner: radii.inner * 3,    // 15 miles
-            middle: radii.middle * 2,   // 20 miles
-            outer: 25                   // 25 miles
+        // Calculate donut ranges
+        const ranges = {
+            inner: { min: 0, max: 15 },      // 5mi ×3 = 15mi
+            middle: { min: 15, max: 20 },     // 10mi ×2 = 20mi (starting at 15)
+            outer: { min: 10, max: 25 }       // 25mi ×1 = 25mi (SAME AS REGULAR OUTER)
         };
         
         return `
@@ -772,81 +774,130 @@ class ACSMapVisualizer {
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
                     <div style="background: #10b981; width: 12px; height: 12px; border-radius: 50%;"></div>
                     <div>
-                        <div style="font-weight: 600; color: #1f2937;">Radius-Weighted Analysis</div>
-                        <div style="font-size: 11px; color: #4b5563;">Inner ×3 (15mi) · Middle ×2 (20mi) · Outer ×1 (25mi)</div>
+                        <div style="font-weight: 600; color: #1f2937;">Radius-Weighted Donuts</div>
+                        <div style="font-size: 11px; color: #4b5563;">Inner ×3 (0-15mi) · Middle ×2 (15-20mi) · Outer ×1 (10-25mi)</div>
                     </div>
                 </div>
                 
-                <!-- Inner Weighted (15 miles) - GREEN -->
+                <!-- Inner Weighted Donut (0-15 miles) -->
                 <div style="background: #f0fdf4; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #10b981;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-weight: 600; color: #065f46;">Inner Weighted (${weightedRadii.inner} miles)</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: #065f46;">Inner Weighted</span>
+                            <span style="font-size: 11px; color: #4b5563; margin-left: 6px;">${ranges.inner.min}-${ranges.inner.max} miles</span>
+                        </div>
                         <span style="font-size: 12px; background: #10b981; color: white; padding: 2px 8px; border-radius: 12px;">${ws.inner.totalMarkers} ZIPs</span>
                     </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.inner.totalEducation).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #1e40af;">${Math.round(ws.inner.totalEducation).toLocaleString()}</div>
                         </div>
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.inner.totalHighIncome).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #991b1b;">${Math.round(ws.inner.totalHighIncome).toLocaleString()}</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                    
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: #4b5563; padding-top: 8px; border-top: 1px solid #e5e7eb;">
                         <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.inner.educationOnly}</span>
                         <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.inner.incomeOnly}</span>
                         <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.inner.bothCriteria}</span>
                     </div>
                 </div>
                 
-                <!-- Middle Weighted (20 miles) - ORANGE -->
+                <!-- Middle Weighted Donut (15-20 miles) -->
                 <div style="background: #fff7ed; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #f59e0b;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-weight: 600; color: #92400e;">Middle Weighted (${weightedRadii.middle} miles)</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: #92400e;">Middle Weighted</span>
+                            <span style="font-size: 11px; color: #4b5563; margin-left: 6px;">${ranges.middle.min}-${ranges.middle.max} miles</span>
+                        </div>
                         <span style="font-size: 12px; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px;">${ws.middle.totalMarkers} ZIPs</span>
                     </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.middle.totalEducation).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #1e40af;">${Math.round(ws.middle.totalEducation).toLocaleString()}</div>
                         </div>
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.middle.totalHighIncome).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #991b1b;">${Math.round(ws.middle.totalHighIncome).toLocaleString()}</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                    
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: #4b5563; padding-top: 8px; border-top: 1px solid #e5e7eb;">
                         <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.middle.educationOnly}</span>
                         <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.middle.incomeOnly}</span>
                         <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.middle.bothCriteria}</span>
                     </div>
                 </div>
                 
-                <!-- Outer Weighted (25 miles) - RED -->
+                <!-- Outer Weighted Donut (10-25 miles) - SAME AS REGULAR OUTER -->
                 <div style="background: #fef2f2; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid #ef4444;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="font-weight: 600; color: #991b1b;">Outer Weighted (${weightedRadii.outer} miles)</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: #991b1b;">Outer Weighted</span>
+                            <span style="font-size: 11px; color: #4b5563; margin-left: 6px;">${ranges.outer.min}-${ranges.outer.max} miles</span>
+                        </div>
                         <span style="font-size: 12px; background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px;">${ws.outer.totalMarkers} ZIPs</span>
                     </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Education ≥ Bachelor's</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #1e40af;">${Math.round(ws.outer.totalEducation).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #1e40af;">${Math.round(ws.outer.totalEducation).toLocaleString()}</div>
                         </div>
                         <div>
                             <div style="font-size: 11px; color: #4b5563;">Households ≥ $100k</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #991b1b;">${Math.round(ws.outer.totalHighIncome).toLocaleString()}</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #991b1b;">${Math.round(ws.outer.totalHighIncome).toLocaleString()}</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 12px; font-size: 12px; color: #4b5563;">
+                    
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: #4b5563; padding-top: 8px; border-top: 1px solid #e5e7eb;">
                         <span><span style="color: #1e40af;">📚</span> Edu Only: ${ws.outer.educationOnly}</span>
                         <span><span style="color: #991b1b;">💰</span> Inc Only: ${ws.outer.incomeOnly}</span>
                         <span><span style="color: #5b21b6;">⭐</span> Both: ${ws.outer.bothCriteria}</span>
                     </div>
                 </div>
                 
-                <div style="margin-top: 12px; font-size: 12px; color: #4b5563; background: #f3f4f6; padding: 8px; border-radius: 6px;">
+                <!-- Comparison with Regular Donuts -->
+                <div style="margin-top: 16px; background: #f3f4f6; border-radius: 8px; padding: 12px; font-size: 12px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; color: #374151;">📊 Regular vs Weighted Donuts</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <div style="color: #10b981;">Inner (0-5mi)</div>
+                            <div>${regularStats.inner.totalMarkers} ZIPs</div>
+                        </div>
+                        <div>
+                            <div style="color: #10b981;">Inner W (0-15mi)</div>
+                            <div>${ws.inner.totalMarkers} ZIPs</div>
+                        </div>
+                        <div>
+                            <div style="color: #f59e0b;">Middle (5-10mi)</div>
+                            <div>${regularStats.middle.totalMarkers} ZIPs</div>
+                        </div>
+                        <div>
+                            <div style="color: #f59e0b;">Middle W (15-20mi)</div>
+                            <div>${ws.middle.totalMarkers} ZIPs</div>
+                        </div>
+                        <div>
+                            <div style="color: #ef4444;">Outer (10-25mi)</div>
+                            <div>${regularStats.outer.totalMarkers} ZIPs</div>
+                        </div>
+                        <div>
+                            <div style="color: #ef4444;">Outer W (10-25mi)</div>
+                            <div>${ws.outer.totalMarkers} ZIPs</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 11px; color: #059669; text-align: center;">
+                        ✓ Outer weighted (×1) matches regular outer exactly
+                    </div>
+                </div>
+                
+                <div style="margin-top: 12px; font-size: 12px; color: #4b5563; background: #e0f2fe; padding: 8px; border-radius: 6px;">
                     <i class="fas fa-info-circle"></i> <strong>⭐ Star = Both criteria met</strong> (Education ≥ Bachelor's AND Household Income ≥ $100k)
                 </div>
             </div>
